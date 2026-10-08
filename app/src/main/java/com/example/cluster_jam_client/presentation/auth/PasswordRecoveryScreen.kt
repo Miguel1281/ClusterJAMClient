@@ -63,7 +63,6 @@ fun PasswordRecoveryScreen(
             OutlinedTextField(
                 value = code,
                 onValueChange = { value ->
-                    // Keep the code as text, including a leading zero.
                     code = value.filter { it in '0'..'9' }.take(6)
                     codeError = AuthValidation.codeError(code)
                 },

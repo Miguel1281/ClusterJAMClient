@@ -58,7 +58,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        // A change of account recreates the graph and discards its previous back stack.
                         key(state.identity?.userId) {
                             val navController = rememberNavController()
                             fun returnToLogin() {

@@ -63,11 +63,9 @@ class AuthRepositoryImpl(
                     try {
                         authorizedLocked { token -> apiService.logout(token).requireSuccess() }
                     } catch (_: SessionEnded) {
-                        // An invalid session already requires discarding the local credentials.
                     }
                 }
             } finally {
-                // Also discard local credentials if the network or server is unavailable.
                 secureStorage.clear()
             }
         }
@@ -78,7 +76,6 @@ class AuthRepositoryImpl(
         validateEmail(normalized)
         val response = apiService.requestPasswordRecovery(PasswordRecoveryRequest(normalized))
         if (!response.isSuccessful) throw HttpException(response)
-        // Ignoramos validación estricta del mensaje en caso de que el backend devuelva 201/204 sin cuerpo
         Unit
     }
 
@@ -112,7 +109,6 @@ class AuthRepositoryImpl(
         return current
     }
 
-    // Caller holds the mutex: rotated refresh tokens cannot be exchanged concurrently.
     private suspend fun <T> authorizedLocked(request: suspend (String) -> T): T {
         var session = requireSession()
         if (session.needsRenewal(nowMillis())) session = renewLocked(session)
@@ -141,7 +137,6 @@ class AuthRepositoryImpl(
                 secureStorage.clear()
                 throw SessionEnded()
             }
-            // Transient errors preserve the stored session for a later retry.
             throw error
         }
         val session = response.toSession()

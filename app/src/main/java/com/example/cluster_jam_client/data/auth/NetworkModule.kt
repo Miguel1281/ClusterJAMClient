@@ -9,7 +9,6 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 object NetworkModule {
-    // Conserva la configuración de tu app. Cambia solo la URL si tu servidor usa otro puerto.
     private const val BASE_URL = "http://192.168.1.241:8081/"
 
     private val loggingInterceptor = Interceptor { chain ->

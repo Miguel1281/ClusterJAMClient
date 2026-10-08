@@ -25,7 +25,6 @@ interface AuthApiService {
         @Body request: RefreshSessionRequest
     ): SessionResponse
 
-    // Pendiente: este GET no aparece registrado en los logs del backend.
     @GET("api/v1/auth/sessions/current")
     suspend fun currentIdentity(
         @Header("Authorization") authorization: String
@@ -81,7 +80,6 @@ data class PasswordRecoveryRequest(
     val email: String
 )
 
-// Pendiente: confirmar estos campos con el DTO de PasswordResetController.
 data class RecoverPasswordRequest(
     val email: String,
     val code: String,

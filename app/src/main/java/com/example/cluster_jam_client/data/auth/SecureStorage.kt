@@ -26,7 +26,6 @@ class SecureStorageImpl(context: Context) : SecureStorage {
     )
 
     override fun saveSession(session: AuthSession) {
-        // Both rotated tokens and their lifetime are persisted in one edit.
         val saved = preferences.edit()
             .remove("JWT_TOKEN")
             .putString("access_token", session.accessToken)
@@ -46,7 +45,6 @@ class SecureStorageImpl(context: Context) : SecureStorage {
         val expiresAt = preferences.getLong("expires_at", 0L)
         if (access.isNullOrBlank() || refresh.isNullOrBlank() || userId.isNullOrBlank() ||
             email.isNullOrBlank() || expiresAt <= 0L) {
-            // The original access-token-only format cannot be renewed safely.
             if (preferences.contains("JWT_TOKEN") || access != null || refresh != null) clear()
             return null
         }
