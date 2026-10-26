@@ -1,0 +1,192 @@
+name: Android CI and APK delivery
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      AUTH_BASE_URL:
+        description: "Backend reachable by the phone; replace X with your computer's LAN IP"
+        required: true
+        type: string
+        default: "http://192.168.1.X:3000/"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: Verify Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      # Tests use MockWebServer. This URL never contacts a real backend.
+      ORG_GRADLE_PROJECT_authBaseUrl: https://ci.clusterjam.invalid/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle Wrapper and cache
+        uses: gradle/actions/setup-gradle@4c125117fe7c5aed11272ec4213f602f012f89f2 # v5
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+
+      - name: Check format, JVM tests, Lint and debug build
+        run: |
+          mkdir -p build/reports/ci
+          bash ./gradlew --no-daemon --console=plain --continue \
+            spotlessCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
+            2>&1 | tee build/reports/ci/verification.log
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ClusterJAM-reports-${{ github.run_number }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: |
+            build/reports/
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  deliver:
+    name: Deliver testing APK
+    needs: verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: apk-testing
+    steps:
+      - name: Checkout verified commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle Wrapper and read-only cache
+        uses: gradle/actions/setup-gradle@4c125117fe7c5aed11272ec4213f602f012f89f2 # v5
+        with:
+          cache-read-only: true
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+
+      - name: Prepare delivery metadata
+        id: metadata
+        env:
+          AUTH_BASE_URL: ${{ inputs.AUTH_BASE_URL || vars.AUTH_BASE_URL }}
+        run: |
+          if [[ -z "$AUTH_BASE_URL" ]]; then
+            echo "::error::Set AUTH_BASE_URL in the apk-testing environment for automatic main delivery."
+            exit 1
+          fi
+          version_code=$((100000 + GITHUB_RUN_NUMBER))
+          artifact_name="ClusterJAM-Android-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA:0:12}"
+          printf 'version_code=%s\nartifact_name=%s\n' "$version_code" "$artifact_name" >> "$GITHUB_OUTPUT"
+          mkdir -p distribution build/reports/ci
+          printf 'Commit: %s\nRun: %s (attempt %s)\nVersion code: %s\nBackend: %s\n' \
+            "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT" "$version_code" "$AUTH_BASE_URL" \
+            > distribution/BUILD-INFO.txt
+
+      - name: Restore testing keystore
+        env:
+          CLUSTERJAM_KEYSTORE_PATH: ${{ runner.temp }}/clusterjam-signing/testing.jks
+          ANDROID_TEST_KEYSTORE_BASE64: ${{ secrets.ANDROID_TEST_KEYSTORE_BASE64 }}
+          ANDROID_TEST_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_TEST_KEYSTORE_PASSWORD }}
+          ANDROID_TEST_KEY_ALIAS: ${{ secrets.ANDROID_TEST_KEY_ALIAS }}
+          ANDROID_TEST_KEY_PASSWORD: ${{ secrets.ANDROID_TEST_KEY_PASSWORD }}
+        run: |
+          for name in ANDROID_TEST_KEYSTORE_BASE64 ANDROID_TEST_KEYSTORE_PASSWORD ANDROID_TEST_KEY_ALIAS ANDROID_TEST_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing apk-testing secret: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          mkdir -p "$(dirname "$CLUSTERJAM_KEYSTORE_PATH")"
+          printf '%s' "$ANDROID_TEST_KEYSTORE_BASE64" | base64 --decode > "$CLUSTERJAM_KEYSTORE_PATH"
+
+      - name: Build APK with stable testing signature
+        env:
+          CLUSTERJAM_KEYSTORE_PATH: ${{ runner.temp }}/clusterjam-signing/testing.jks
+          ORG_GRADLE_PROJECT_authBaseUrl: ${{ inputs.AUTH_BASE_URL || vars.AUTH_BASE_URL }}
+          ORG_GRADLE_PROJECT_distributeApk: "true"
+          ORG_GRADLE_PROJECT_apkVersionCode: ${{ steps.metadata.outputs.version_code }}
+          CLUSTERJAM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_TEST_KEYSTORE_PASSWORD }}
+          CLUSTERJAM_KEY_ALIAS: ${{ secrets.ANDROID_TEST_KEY_ALIAS }}
+          CLUSTERJAM_KEY_PASSWORD: ${{ secrets.ANDROID_TEST_KEY_PASSWORD }}
+        run: |
+          # Signing credentials must not be serialized into the configuration cache.
+          bash ./gradlew --no-daemon --no-configuration-cache --console=plain :app:assembleDebug \
+            2>&1 | tee build/reports/ci/distribution.log
+
+      - name: Verify and package signed APK
+        env:
+          ARTIFACT_NAME: ${{ steps.metadata.outputs.artifact_name }}
+        run: |
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
+            | tee build/reports/ci/apk-signature.txt
+          cp "$apk" "distribution/$ARTIFACT_NAME.apk"
+          cp app/build/outputs/apk/debug/output-metadata.json distribution/
+          (cd distribution && sha256sum ./*.apk > SHA256SUMS.txt)
+
+      - name: Upload delivery reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ClusterJAM-delivery-reports-${{ github.run_number }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: build/reports/ci/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Remove temporary keystore
+        if: always()
+        env:
+          CLUSTERJAM_KEYSTORE_PATH: ${{ runner.temp }}/clusterjam-signing/testing.jks
+        run: |
+          rm -f "$CLUSTERJAM_KEYSTORE_PATH"
+          signing_dir="$(dirname "$CLUSTERJAM_KEYSTORE_PATH")"
+          if [[ -d "$signing_dir" ]]; then rmdir "$signing_dir"; fi
+
+      # Upload is deliberately last and only runs after every preceding step succeeds.
+      - name: Upload testing APK
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: distribution/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
