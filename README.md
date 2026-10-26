@@ -3,6 +3,41 @@
 Cliente Android con Kotlin y Jetpack Compose. La autenticación consume Auth Service mediante
 Retrofit; las vistas acceden al repositorio a través de `AuthViewModel`.
 
+## Organización del proyecto
+
+Android, el cliente Windows y el backend se mantienen en repositorios independientes.
+Este repositorio contiene únicamente el cliente Android y conserva un solo módulo Gradle, `app`.
+
+Dentro de `com.clusterjam.mobile`:
+
+- `app`: composición, navegación, rutas y barra inferior compartida. `MainActivity` inicia
+  `ClusterJamApp`, que conserva la restauración de sesión y los recorridos actuales.
+- `app/di`: inyección manual. `ClusterJamApplication` conserva un `AppContainer` por proceso;
+  este comparte un repositorio Auth, un almacenamiento cifrado y un cliente HTTP. Las fábricas
+  de ViewModels reciben las dependencias ya construidas.
+- `core/network`: configuración Retrofit con `BuildConfig.AUTH_BASE_URL`, los tiempos límite
+  existentes y el parser común de Problem Details. `core/ui/theme` contiene el tema compartido.
+- `features/auth/data`: API y DTO de solicitudes/respuestas, almacenamiento cifrado, mapeadores
+  y coordinación del repositorio. Los DTO de solicitudes son independientes de los modelos del dominio.
+- `features/auth/domain`: modelos, interfaz del repositorio y validación que devuelve códigos;
+  no depende de Android, recursos, Compose ni Retrofit.
+- `features/auth/presentation`: pantallas por flujo, `AuthViewModel` transitorio y traducción
+  de fallos a mensajes locales de `strings.xml`. Solo consume el contrato del repositorio.
+- `features/catalog/presentation` y `features/profile/presentation`: prototipos existentes.
+
+`AuthViewModel` conserva temporalmente sus operaciones; la separación de estados y ViewModels
+por flujo se realizará en las ramas funcionales del roadmap. Esta reorganización conserva las
+siete operaciones Auth, sin anticipar la confirmación de correo ni la verificación de roles.
+
+Los health checks se consultan directamente mediante `AppContainer.healthApiService`, separado
+de la API y del repositorio Auth. No necesitan sesión y no condicionan login ni catálogo.
+`readiness()` devuelve una respuesta HTTP para que el llamador pueda distinguir `200` de `503`.
+El perfil ya no incluye el botón de diagnóstico.
+
+Antes de retirar `cluster_jam_client.zip` de las fuentes se compararon todos sus archivos con el
+código vigente, normalizando los paquetes: no contenía funcionalidades únicas pendientes de
+rescatar. Se conservan las mejoras posteriores del contrato, configuración de URL y errores.
+
 ## Configurar Auth Service
 
 La propiedad Gradle `authBaseUrl` define la dirección del servicio y genera
@@ -45,7 +80,8 @@ Los códigos de recuperación se envían como cadenas de seis dígitos para cons
 
 Los errores HTTP se interpretan como Problem Details. `AuthFailure` conserva el código, el estado
 HTTP real, los errores de validación y el identificador de traza cuando existen. Los mensajes
-mostrados al usuario se eligen localmente, sin mostrar diagnósticos del proveedor. El logging de
+mostrados al usuario se eligen en presentación mediante `AuthMessageMapper` y `strings.xml`,
+sin mostrar diagnósticos del proveedor. El logging de
 red se activa únicamente en debug y registra método, ruta y estado; omite cuerpos y cabeceras.
 
 ## Verificación
@@ -59,3 +95,6 @@ Con el SDK Android y el JDK configurados para el Gradle Wrapper del proyecto:
 Las pruebas de contrato usan MockWebServer local y almacenamiento en memoria. Cubren las rutas,
 los cuerpos de solicitud, respuestas `201`/`204`, la conversión de expiración, rotación de tokens
 y errores Problem Details. No requieren un backend activo ni credenciales de Supabase.
+Las pruebas de health están en `core/network`; los mensajes locales se verifican en presentación
+y las reglas de validación en dominio. Las pruebas automatizadas no acreditan ejecución contra
+el backend real ni una revisión visual en emulador.
