@@ -18,3 +18,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Signing keys are supplied outside the repository or through GitHub secrets.
+*.jks
+*.keystore
+keystore.properties
+/distribution/
