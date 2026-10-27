@@ -21,6 +21,7 @@ import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
 import com.clusterjam.mobile.features.auth.presentation.AuthViewModel
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun ClusterJamApp(
@@ -86,13 +87,39 @@ fun ClusterJamApp(
                         }
                     }
                     is SessionState.RecoverableError -> {
+                        var remaining by
+                            remember(session.failure) {
+                                mutableLongStateOf(session.failure.retryAfterMillis ?: 0L)
+                            }
+                        LaunchedEffect(session.failure) {
+                            val duration = remaining.coerceAtLeast(0)
+                            val start = System.currentTimeMillis()
+                            while (remaining > 0) {
+                                delay(minOf(remaining, 1000L))
+                                remaining =
+                                    (duration - (System.currentTimeMillis() - start)).coerceAtLeast(
+                                        0,
+                                    )
+                            }
+                        }
                         BackHandler(enabled = !state.isBusy, onBack = ::discardSession)
                         SessionStatus {
                             Text(
                                 AuthMessageMapper.failure(session.failure)
                                     .resolve(LocalContext.current),
                             )
-                            Button(onClick = appViewModel::retryIdentity, enabled = !state.isBusy) {
+                            if (remaining > 0) {
+                                Text(
+                                    stringResource(
+                                        R.string.auth_retry_after,
+                                        remaining / 1000 + if (remaining % 1000 > 0) 1 else 0,
+                                    ),
+                                )
+                            }
+                            Button(
+                                onClick = appViewModel::retryIdentity,
+                                enabled = !state.isBusy && remaining == 0L,
+                            ) {
                                 Text(stringResource(R.string.auth_retry))
                             }
                             TextButton(onClick = ::discardSession, enabled = !state.isBusy) {

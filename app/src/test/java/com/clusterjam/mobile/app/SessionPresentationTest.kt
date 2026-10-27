@@ -126,6 +126,12 @@ class SessionPresentationTest {
     @Test
     fun remoteLogoutFailureWithSuccessfulLocalClearStillLeavesTheAppSignedOut() = runTest {
         val repository = FakeAuthRepository()
+        val pendingIdentity = CompletableDeferred<Unit>()
+        repository.restore = {
+            pendingIdentity.await()
+            repository.states.value = SessionState.Authenticated(customer)
+            Result.success(customer)
+        }
         val app = own("app", AppViewModel(repository))
         repository.states.value = SessionState.Authenticated(customer)
         repository.logoutAction = {
@@ -133,8 +139,10 @@ class SessionPresentationTest {
             Result.failure(AuthFailure("NETWORK_ERROR"))
         }
         app.logout()
+        pendingIdentity.complete(Unit)
         runCurrent()
         assertEquals(SessionState.Unauthenticated, app.uiState.value.session)
         assertEquals(R.string.auth_logged_out_locally, app.uiState.value.notice?.resourceId)
+        assertFalse(app.uiState.value.isBusy)
     }
 }

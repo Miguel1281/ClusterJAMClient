@@ -3,6 +3,8 @@ package com.clusterjam.mobile.features.auth.domain.model
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
 
 enum class StorageAction {
+    OPEN,
+    READ,
     SAVE,
     CLEAR,
 }

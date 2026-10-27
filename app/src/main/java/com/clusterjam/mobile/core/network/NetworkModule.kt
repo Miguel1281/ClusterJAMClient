@@ -20,8 +20,29 @@ internal fun createRetrofit(baseUrl: String, logRequests: Boolean = false): Retr
     val clientBuilder =
         OkHttpClient.Builder()
             .retryOnConnectionFailure(false)
+            .addNetworkInterceptor { chain ->
+                // Recheck each network exchange, including redirects within the same host.
+                val request = chain.request()
+                if (
+                    request.header("Authorization") != null &&
+                        !isProtectedApiRequest(request, baseUrl)
+                ) {
+                    throw java.io.IOException(
+                        "Authorization is restricted to the configured protected API.",
+                    )
+                }
+                chain.proceed(request)
+            }
             .addInterceptor { chain ->
                 val original = chain.request()
+                if (
+                    original.header("Authorization") != null &&
+                        !isProtectedApiRequest(original, baseUrl)
+                ) {
+                    throw java.io.IOException(
+                        "Authorization is restricted to protected operations of the configured API.",
+                    )
+                }
                 val body = original.body()
                 val request =
                     if (original.method() == "POST" && body != null) {

@@ -121,6 +121,18 @@ class AuthMessageMapperTest {
     @Test
     fun storageSaveAndClearFailuresKeepTheirSpecificMessages() {
         assertEquals(
+            AuthMessage(R.string.auth_error_storage_open),
+            AuthMessageMapper.failure(
+                AuthFailure("STORAGE_ERROR", storageAction = StorageAction.OPEN),
+            ),
+        )
+        assertEquals(
+            AuthMessage(R.string.auth_error_storage_read),
+            AuthMessageMapper.failure(
+                AuthFailure("STORAGE_ERROR", storageAction = StorageAction.READ),
+            ),
+        )
+        assertEquals(
             AuthMessage(R.string.auth_error_storage_save),
             AuthMessageMapper.failure(
                 AuthFailure("STORAGE_ERROR", storageAction = StorageAction.SAVE),

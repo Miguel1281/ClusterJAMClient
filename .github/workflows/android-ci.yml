@@ -56,11 +56,12 @@ jobs:
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
 
-      - name: Check format, JVM tests, Lint and debug build
+      - name: Check format, JVM tests, Lint and debug/release builds
         run: |
           mkdir -p build/reports/ci
           bash ./gradlew --no-daemon --console=plain --continue \
-            spotlessCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug \
+            spotlessCheck :app:testDebugUnitTest :app:lintDebug :app:lintRelease \
+            :app:assembleDebug :app:assembleRelease \
             2>&1 | tee build/reports/ci/verification.log
 
       - name: Upload verification reports

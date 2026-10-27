@@ -1,8 +1,10 @@
 package com.clusterjam.mobile.app.di
 
 import android.content.Context
+import com.clusterjam.mobile.BuildConfig
 import com.clusterjam.mobile.core.network.HealthApiService
 import com.clusterjam.mobile.core.network.NetworkModule
+import com.clusterjam.mobile.core.network.SessionAccess
 import com.clusterjam.mobile.features.auth.data.local.SecureStorage
 import com.clusterjam.mobile.features.auth.data.local.SecureStorageImpl
 import com.clusterjam.mobile.features.auth.data.remote.AuthApiService
@@ -17,9 +19,15 @@ class AppContainer(context: Context) {
         networkModule.retrofit.create(AuthApiService::class.java)
     }
 
-    val authRepository: AuthRepository by lazy {
-        AuthRepositoryImpl(authApiService, secureStorage)
+    private val sharedAuthRepository by lazy {
+        AuthRepositoryImpl(authApiService, secureStorage, apiBaseUrl = BuildConfig.AUTH_BASE_URL)
     }
+
+    val authRepository: AuthRepository
+        get() = sharedAuthRepository
+
+    val sessionAccess: SessionAccess
+        get() = sharedAuthRepository
 
     val healthApiService: HealthApiService by lazy {
         networkModule.retrofit.create(HealthApiService::class.java)

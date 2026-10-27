@@ -18,7 +18,8 @@ Dentro de `com.clusterjam.mobile`:
   este comparte un repositorio Auth, un almacenamiento cifrado y un cliente HTTP. Las fábricas
   de ViewModels reciben las dependencias ya construidas.
 - `core/network`: configuración Retrofit con `BuildConfig.AUTH_BASE_URL`, los tiempos límite
-  existentes y el parser común de Problem Details. `core/ui/theme` contiene el tema compartido.
+  existentes, `SessionAccess` para operaciones protegidas y el parser común de Problem Details.
+  `core/ui/theme` contiene el tema compartido.
 - `features/auth/data`: API y DTO de solicitudes/respuestas, almacenamiento cifrado, mapeadores
   y coordinación del repositorio. Los DTO de solicitudes son independientes de los modelos del dominio.
 - `features/auth/domain`: identidad básica, identidad verificada con rol, estados de sesión,
@@ -58,8 +59,16 @@ y compilar. La URL debe usar HTTP o HTTPS y no incluir credenciales, query ni fr
 Se agrega una barra final si falta. No agregar `/api/v1` al valor: las rutas de Retrofit ya
 incluyen ese prefijo. Un prefijo externo del proxy, si existe, sí puede formar parte de la URL base.
 
-La configuración de URL no modifica el despliegue del backend. HTTP permite las pruebas locales;
-la dirección de un despliegue debe utilizar HTTPS.
+La excepción de HTTP está únicamente en `app/src/debug/AndroidManifest.xml`. El APK debug
+permite el emulador y la URL LAN configurada expresamente; release deniega cleartext y exige
+`authBaseUrl` explícita con HTTPS, sin heredar la dirección del emulador. Por ejemplo:
+
+```powershell
+.\gradlew.bat :app:assembleRelease '-PauthBaseUrl=https://api.example.com/'
+```
+
+La construcción release de verificación no requiere firma de publicación. La configuración
+de URL no despliega ni comprueba la disponibilidad del backend.
 
 ## Contrato HTTP integrado
 
@@ -148,6 +157,42 @@ mostrados al usuario se eligen en presentación mediante `AuthMessageMapper` y `
 sin mostrar diagnósticos del proveedor. El logging de
 red se activa únicamente en debug y registra método, ruta y estado; omite cuerpos y cabeceras.
 
+## Coordinación y persistencia de la sesión
+
+`AppContainer.authRepository` y `AppContainer.sessionAccess` apuntan a la misma instancia de
+`AuthRepositoryImpl`, con el mismo almacenamiento. `SessionAccess.execute` recibe una fábrica
+de `retrofit2.Call` que añade el encabezado proporcionado y construye la llamada sin ejecutarla.
+Está destinada a repositorios de datos; ViewModels y pantallas siguen sin recibir tokens.
+Solo admite operaciones protegidas del origen y prefijo de API configurados. El transporte
+también impide enviar `Authorization` a las rutas públicas de Auth o a hosts externos.
+
+La coordinación conserva el mutex para modificar la sesión, pero ejecuta las peticiones
+ordinarias fuera de él. Una solicitud que esperaba renovar vuelve a leer los tokens y
+reutiliza una renovación ya completada. GET, HEAD y DELETE admiten como máximo un reintento
+tras un `401`; POST no se repite automáticamente. La renovación no se llama a sí misma ni
+usa el mecanismo de peticiones protegidas. Se conserva la protección del transporte frente
+a reenvíos por conexión fallida o por `503` con `Retry-After: 0`.
+
+Cerrar o descartar invalida inmediatamente los resultados pendientes antes de esperar al
+mutex. Una respuesta antigua no puede guardar tokens ni publicar una identidad autenticada.
+Un `401` de refresh o el rechazo del token renovado termina la sesión; `409`, `429`, red y
+`503` conservan los tokens. La renovación y la consulta de identidad respetan `Retry-After`
+en segundos o fecha HTTP; la pantalla muestra la espera. Un `403` de permisos de otra API
+solo falla esa operación y no cierra la sesión. Las reglas específicas de identidad y rol
+se mantienen en la consulta de sesión actual.
+
+Si el cierre remoto falla, se intenta igualmente la limpieza local y se comunica que el
+cierre fue solo local. Si falla el borrado persistente, el acceso queda bloqueado y se puede
+reintentar la limpieza. Abrir claves/preferencias, leer, guardar y borrar tienen fallos de
+almacenamiento identificables. La apertura es diferida para poder mostrar el error durante
+la restauración, sin interrumpir la construcción de dependencias. Un contenido incompleto
+se informa como error de lectura; no se borra ni se trata silenciosamente como sesión ausente.
+Un guardado fallido bloquea los tokens anteriores hasta su limpieza explícita.
+
+Se mantiene `EncryptedSharedPreferences`, con ambos tokens y la expiración guardados juntos;
+no hay sustitución por texto plano. `cluster_jam_secure_prefs.xml` está excluido del respaldo
+en `backup_rules.xml` y del respaldo y transferencia en `data_extraction_rules.xml`.
+
 ## Verificación
 
 El toolchain actual usa JDK 25 (`gradle/gradle-daemon-jvm.properties`), Gradle Wrapper 9.6.0,
@@ -160,6 +205,12 @@ Con ese SDK y JDK configurados, ejecutar desde la raíz del repositorio:
 
 ```powershell
 .\gradlew.bat spotlessCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+```
+
+Para comprobar también release, sin servidor real ni firma de publicación:
+
+```powershell
+.\gradlew.bat spotlessCheck :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease '-PauthBaseUrl=https://ci.clusterjam.invalid/'
 ```
 
 El formato se fija con Spotless 8.10.4 y ktfmt 0.65, estilo Kotlin con 4 espacios y ancho de
@@ -205,11 +256,21 @@ debug y del APK de instrumentación. Las pruebas Compose existentes se adaptaron
 ViewModel, pero no se ejecutaron en emulador durante esta rama.
 La comprobación del correo recibido y del flujo completo contra el backend real queda pendiente.
 
+La rama 6 añade nueve pruebas JVM puntuales de expiración, concurrencia, rechazo/espera de
+refresh, cierre con operaciones pendientes, alcance de autorización y fallos de almacenamiento.
+También amplía casos existentes de cierre en presentación y mensajes de almacenamiento.
+El conjunto suma 67 pruebas JVM. La comprobación de las preferencias usa dobles: no sustituye
+una prueba del keystore real en un dispositivo. Las pruebas Compose existentes se compilan,
+pero no se ejecutan en emulador en esta etapa.
+Pasaron las 67 pruebas, formato, Lint de ambas variantes y las construcciones debug, release
+sin firma y del APK de instrumentación. También se verificó el rechazo de release sin URL
+explícita o con HTTP; estas comprobaciones no contactan con el backend.
+
 ## Verificación y entrega en GitHub Actions
 
 El workflow `.github/workflows/android-ci.yml`, **Android CI and APK delivery**, se ejecuta en
 PR hacia `main`, pushes a `main` y manualmente. El trabajo **Verify Android** comprueba formato,
-pruebas JVM, Android Lint y construcción debug en Ubuntu 24.04. Usa una URL ficticia y no accede
+pruebas JVM, Android Lint y construcciones debug y release en Ubuntu 24.04. Usa una URL HTTPS ficticia y no accede
 al backend. `--continue` permite obtener los reportes de las comprobaciones independientes
 aunque otra falle; la ejecución sigue teniendo resultado fallido si cualquier tarea falla.
 
@@ -311,5 +372,5 @@ Las siguientes entregas con la clave estable pueden instalarse como actualizacio
 las [reglas de firma de Android](https://developer.android.com/studio/publish/app-signing).
 
 Esta etapa distribuye APK de pruebas por Actions. No publica en una tienda ni despliega el backend.
-La comprobación de release con una URL HTTPS ficticia se añadirá cuando la rama 6 establezca su
-política HTTPS; la entrega inicial seguirá usando el APK debug firmado de pruebas.
+La comprobación de release utiliza una URL HTTPS ficticia y no requiere firma de publicación;
+la entrega continúa usando el APK debug con firma estable de pruebas y admite HTTP por LAN.
