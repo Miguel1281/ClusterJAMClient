@@ -1,3 +1,4 @@
+import com.android.build.api.variant.BuildConfigField
 import java.net.URI
 
 plugins {
@@ -110,6 +111,25 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        requireNotNull(variant.buildConfigFields)
+            .put(
+                "AUTH_BASE_URL",
+                configuredAuthBaseUrl.orElse("").map { explicit ->
+                    require(explicit.isNotBlank() && URI(explicit.trim()).scheme == "https") {
+                        "Release requires an explicit HTTPS authBaseUrl."
+                    }
+                    BuildConfigField(
+                        "String",
+                        "\"$authBaseUrl\"",
+                        "Explicit HTTPS backend for release",
+                    )
+                },
+            )
     }
 }
 

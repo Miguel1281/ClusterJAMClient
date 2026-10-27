@@ -37,14 +37,18 @@ object AuthMessageMapper {
                 "PASSWORD_RECOVERY_NOT_ALLOWED" -> R.string.auth_error_recovery_not_allowed
                 "SESSION_REFRESH_CONFLICT" -> R.string.auth_error_refresh_conflict
                 "INVALID_ACCESS_TOKEN",
+                "SESSION_CHANGED",
                 "INVALID_REFRESH_TOKEN",
                 "SESSION_ENDED" -> R.string.auth_error_session_ended
+                "IDENTITY_NOT_VERIFIED" -> R.string.auth_checking_session
                 "VALIDATION_ERROR" ->
                     failure.validationError?.let(::validation) ?: R.string.auth_error_validation
                 "INVALID_REQUEST",
                 "UNPROCESSABLE_ENTITY" -> R.string.auth_error_validation
                 "STORAGE_ERROR" ->
                     when (failure.storageAction) {
+                        StorageAction.OPEN -> R.string.auth_error_storage_open
+                        StorageAction.READ -> R.string.auth_error_storage_read
                         StorageAction.CLEAR -> R.string.auth_error_storage_clear
                         else -> R.string.auth_error_storage_save
                     }

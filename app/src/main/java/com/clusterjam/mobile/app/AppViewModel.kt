@@ -17,6 +17,7 @@ class AppViewModel(private val repository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(AppUiState(repository.sessionState.value))
     val uiState = _uiState.asStateFlow()
     private var sessionJob: Job? = null
+    private var operationId = 0L
     private var hasStarted = false
 
     init {
@@ -50,33 +51,36 @@ class AppViewModel(private val repository: AuthRepository) : ViewModel() {
         }
     }
 
-    fun logout() = perform {
-        val result = repository.logout()
-        val message =
-            when {
-                result.isSuccess -> AuthMessage(R.string.auth_logged_out)
-                repository.sessionState.value == SessionState.Unauthenticated ->
-                    AuthMessage(R.string.auth_logged_out_locally)
-                else -> AuthMessageMapper.failure(requireNotNull(result.exceptionOrNull()))
-            }
-        _uiState.update { it.copy(notice = message) }
-        result
-    }
+    fun logout() =
+        perform(replacePending = true) {
+            val result = repository.logout()
+            val message =
+                when {
+                    result.isSuccess -> AuthMessage(R.string.auth_logged_out)
+                    repository.sessionState.value == SessionState.Unauthenticated ->
+                        AuthMessage(R.string.auth_logged_out_locally)
+                    else -> AuthMessageMapper.failure(requireNotNull(result.exceptionOrNull()))
+                }
+            _uiState.update { it.copy(notice = message) }
+            result
+        }
 
-    fun discardSession() = perform { repository.discardSession() }
+    fun discardSession() = perform(replacePending = true) { repository.discardSession() }
 
     fun dismissNotice() {
         _uiState.update { it.copy(notice = null) }
     }
 
-    private fun perform(action: suspend () -> Result<*>) {
-        if (sessionJob?.isActive == true) return
+    private fun perform(replacePending: Boolean = false, action: suspend () -> Result<*>) {
+        if (sessionJob?.isActive == true && !replacePending) return
+        val currentOperation = ++operationId
+        if (replacePending) sessionJob?.cancel()
         _uiState.update { it.copy(isBusy = true, notice = null) }
         sessionJob = viewModelScope.launch {
             try {
                 action()
             } finally {
-                _uiState.update { it.copy(isBusy = false) }
+                if (operationId == currentOperation) _uiState.update { it.copy(isBusy = false) }
             }
         }
     }

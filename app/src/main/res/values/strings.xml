@@ -10,6 +10,9 @@
     <string name="auth_access_denied">Acceso denegado</string>
     <string name="auth_dismiss_notice">Aceptar</string>
     <string name="auth_error_credentials">Correo o contraseña incorrectos.</string>
+    <string name="auth_error_storage_open">No se pudo abrir el almacenamiento seguro. Reintenta o limpia la sesión local.</string>
+    <string name="auth_error_storage_read">No se pudo leer la sesión guardada. Reintenta o limpia la sesión local.</string>
+    <string name="auth_retry_after">Podrás reintentar en %1$d segundos.</string>
     <string name="auth_error_email_not_confirmed">Confirma tu correo antes de iniciar sesión.</string>
     <string name="auth_error_confirmation_code">El código de confirmación es inválido, expiró o ya fue utilizado. Solicita otro.</string>
     <string name="auth_error_confirmation_not_allowed">No se puede confirmar esta cuenta. Revisa el correo o intenta iniciar sesión.</string>
