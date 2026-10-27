@@ -1,7 +1,8 @@
 # Cluster JAM Client
 
 Cliente Android con Kotlin y Jetpack Compose. La autenticación consume Auth Service mediante
-Retrofit; las vistas acceden al repositorio a través de `AuthViewModel`.
+Retrofit. `AppViewModel` coordina la sesión global, `LoginViewModel` conserva el formulario de
+acceso y `AuthViewModel` mantiene transitoriamente registro y recuperación.
 
 ## Organización del proyecto
 
@@ -11,7 +12,7 @@ Este repositorio contiene únicamente el cliente Android y conserva un solo mód
 Dentro de `com.clusterjam.mobile`:
 
 - `app`: composición, navegación, rutas y barra inferior compartida. `MainActivity` inicia
-  `ClusterJamApp`, que conserva la restauración de sesión y los recorridos actuales.
+  `ClusterJamApp`; `AppViewModel` observa el estado de sesión publicado por el repositorio.
 - `app/di`: inyección manual. `ClusterJamApplication` conserva un `AppContainer` por proceso;
   este comparte un repositorio Auth, un almacenamiento cifrado y un cliente HTTP. Las fábricas
   de ViewModels reciben las dependencias ya construidas.
@@ -19,15 +20,15 @@ Dentro de `com.clusterjam.mobile`:
   existentes y el parser común de Problem Details. `core/ui/theme` contiene el tema compartido.
 - `features/auth/data`: API y DTO de solicitudes/respuestas, almacenamiento cifrado, mapeadores
   y coordinación del repositorio. Los DTO de solicitudes son independientes de los modelos del dominio.
-- `features/auth/domain`: modelos, interfaz del repositorio y validación que devuelve códigos;
-  no depende de Android, recursos, Compose ni Retrofit.
-- `features/auth/presentation`: pantallas por flujo, `AuthViewModel` transitorio y traducción
+- `features/auth/domain`: identidad básica, identidad verificada con rol, estados de sesión,
+  interfaz del repositorio y validación; no depende de Android, Compose ni Retrofit.
+- `features/auth/presentation`: formulario y `LoginViewModel`, `AuthViewModel` transitorio y traducción
   de fallos a mensajes locales de `strings.xml`. Solo consume el contrato del repositorio.
 - `features/catalog/presentation` y `features/profile/presentation`: prototipos existentes.
 
-`AuthViewModel` conserva temporalmente sus operaciones; la separación de estados y ViewModels
-por flujo se realizará en las ramas funcionales del roadmap. Esta reorganización conserva las
-siete operaciones Auth, sin anticipar la confirmación de correo ni la verificación de roles.
+`AuthViewModel` conserva temporalmente registro y recuperación; estos flujos se separarán en
+sus ramas funcionales. Continúan integradas siete operaciones Auth; la confirmación de correo
+se incorporará en la rama 5.
 
 Los health checks se consultan directamente mediante `AppContainer.healthApiService`, separado
 de la API y del repositorio Auth. No necesitan sesión y no condicionan login ni catálogo.
@@ -67,7 +68,7 @@ la dirección de un despliegue debe utilizar HTTPS.
 | Registro | `POST /api/v1/registrations` | `201`, identidad y estado; no devuelve tokens |
 | Login | `POST /api/v1/sessions` | `200`, sesión con ambos tokens |
 | Renovación | `POST /api/v1/session-renewals` | `200`, sesión con tokens renovados |
-| Identidad actual | `GET /api/v1/sessions/current` | `200`, identidad |
+| Identidad actual | `GET /api/v1/sessions/current` | `200`, identidad con `appRole` |
 | Cierre de sesión | `DELETE /api/v1/sessions/current` | `204`, sin cuerpo |
 | Solicitar recuperación | `POST /api/v1/password-recovery-requests` | `200`, mensaje neutral |
 | Recuperar contraseña | `POST /api/v1/password-recoveries` | `204`, sin cuerpo |
@@ -77,6 +78,39 @@ la dirección de un despliegue debe utilizar HTTPS.
 Solo la consulta y el cierre de sesión actual envían `Authorization: Bearer <accessToken>`.
 `expiresIn` se recibe en segundos y se convierte a una expiración absoluta en milisegundos.
 Los códigos de recuperación se envían como cadenas de seis dígitos para conservar ceros iniciales.
+
+## Identidad verificada y acceso Android
+
+Login guarda la sesión recibida y consulta la identidad actual antes de abrir catálogo o perfil.
+La restauración, el botón de actualizar identidad y el regreso desde segundo plano usan la misma
+comprobación. `AuthIdentity` sigue siendo la identidad básica de registro y tokens; únicamente
+`VerifiedIdentity` contiene el rol validado. Login, renovación y registro no requieren `appRole`
+en sus respuestas.
+
+El repositorio publica un único `SessionState`: comprobando, sin sesión, cliente autenticado,
+acceso denegado o error recuperable. Reconoce los valores exactos `cliente` y `administrador`;
+Android admite exclusivamente `cliente`. Comprueba además que `userId` coincida con la sesión.
+No se concede acceso por tener tokens almacenados ni se asigna un rol predeterminado.
+
+Una cuenta administradora produce el fallo local `CLIENT_APP_ACCESS_DENIED`, con este mensaje:
+“Esta aplicación es exclusiva para cuentas de cliente. No tienes acceso desde este dispositivo”.
+Se bloquea el acceso y se borran los tokens antes de intentar `DELETE /api/v1/sessions/current`
+con el token de Android, sin renovar ni repetir ese cierre desde el repositorio. El rechazo persiste aunque falle el
+cierre remoto. Se utiliza el contrato de cierre de sesión actual del backend, con alcance local;
+no se solicita cerrar otras sesiones, incluidas las de Windows.
+
+Un rol ausente o desconocido produce `INVALID_IDENTITY_ROLE`; el `403 INVALID_APP_ROLE` del
+servidor conserva su código y estado HTTP. Ambos casos bloquean el acceso y descartan la sesión.
+Si falla el borrado local, el proceso conserva el bloqueo y permite reintentar la limpieza.
+Los errores temporales de identidad conservan los tokens y muestran acciones de reintento o
+cierre local. Reintentar consulta identidad; no vuelve a enviar login.
+
+Mientras se comprueba identidad o se muestra un rechazo/error recuperable, el grafo privado
+de navegación no está compuesto. Al salir del estado autenticado se descarta su pila; el botón
+Atrás no puede recuperar catálogo o perfil. `AppViewModel` dirige esta transición desde el estado
+observable; el formulario no autentica por su cuenta ni depende de recibir un aviso pasajero.
+La futura confirmación de correo reutilizará el establecimiento y verificación de sesión del
+repositorio, sin exigir un login adicional ni duplicar las reglas del rol.
 
 Los errores HTTP se interpretan como Problem Details. `AuthFailure` conserva el código, el estado
 HTTP real, los errores de validación y el identificador de traza cuando existen. Los mensajes
@@ -119,6 +153,20 @@ y errores Problem Details. No requieren un backend activo ni credenciales de Sup
 Las pruebas de health están en `core/network`; los mensajes locales se verifican en presentación
 y las reglas de validación en dominio. Las pruebas automatizadas no acreditan ejecución contra
 el backend real ni una revisión visual en emulador.
+
+Las pruebas de identidad cubren cliente, administrador, rol ausente/desconocido, `403`, discrepancia
+de usuario, fallo temporal, token renovado y limpieza local fallida. Las pruebas Compose de esta
+rama verifican rechazo en login/restauración, revalidación al volver del segundo plano, reintento
+y ausencia de pantallas privadas tras pulsar Atrás. Con un emulador disponible:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.clusterjam.mobile.VerifiedCustomerNavigationTest'
+```
+
+Estas pruebas usan MockWebServer y almacenamiento ficticio; no prueban cuentas reales de Supabase
+ni la conservación de una sesión de Windows contra un despliegue real.
+En esta rama se verificaron 52 pruebas JVM y cuatro pruebas Compose en Pixel_8 (API 36), todas
+aprobadas, además de formato, Android Lint y construcción debug y del APK de instrumentación.
 
 ## Verificación y entrega en GitHub Actions
 

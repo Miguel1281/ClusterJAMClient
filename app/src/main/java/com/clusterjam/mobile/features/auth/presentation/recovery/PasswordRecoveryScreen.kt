@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -16,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.clusterjam.mobile.R
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidator
+import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
 
 @Composable
@@ -26,7 +28,8 @@ fun PasswordRecoveryScreen(
     onRequestCode: (String) -> Unit,
     onRecoverPassword: (String, String) -> Unit,
     onChangeEmail: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    error: AuthMessage? = null,
 ) {
     var email by rememberSaveable { mutableStateOf(initialEmail) }
     var code by remember { mutableStateOf("") }
@@ -39,15 +42,21 @@ fun PasswordRecoveryScreen(
     val emailError = if (email.isBlank()) null else AuthValidator.emailError(email.trim())
 
     Column(
-        modifier = Modifier.fillMaxSize().imePadding().padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier =
+            Modifier.fillMaxSize()
+                .imePadding()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(Modifier.height(24.dp))
+        error?.let {
+            Text(it.resolve(LocalContext.current), color = MaterialTheme.colorScheme.error)
+        }
         Text(
             "Recuperar contraseña",
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
         )
         if (recoveryEmail == null) {
             Text("Ingresa tu correo de acceso para solicitar un código de recuperación.")
@@ -62,13 +71,15 @@ fun PasswordRecoveryScreen(
                 isError = emailError != null,
                 supportingText = {
                     emailError?.let { Text(stringResource(AuthMessageMapper.validation(it))) }
-                }
+                },
             )
             Button(
                 onClick = { onRequestCode(email.trim()) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && AuthValidator.emailError(email.trim()) == null
-            ) { Text(if (isLoading) "Solicitando…" else "Solicitar código") }
+                enabled = !isLoading && AuthValidator.emailError(email.trim()) == null,
+            ) {
+                Text(if (isLoading) "Solicitando…" else "Solicitar código")
+            }
         } else {
             Text("Si la cuenta puede recibir correos, recibirás un código en $recoveryEmail.")
             OutlinedTextField(
@@ -85,16 +96,16 @@ fun PasswordRecoveryScreen(
                 isError = codeError != null,
                 supportingText = {
                     codeError?.let { Text(stringResource(AuthMessageMapper.validation(it))) }
-                }
+                },
             )
             OutlinedTextField(
                 value = password,
                 onValueChange = {
                     password = it
                     passwordError = AuthValidator.passwordError(it)
-                    confirmationError = if (
-                        confirmation.isNotEmpty() && confirmation != it
-                    ) passwordMismatchMessage else null
+                    confirmationError =
+                        if (confirmation.isNotEmpty() && confirmation != it) passwordMismatchMessage
+                        else null
                 },
                 label = { Text("Nueva contraseña") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -107,10 +118,10 @@ fun PasswordRecoveryScreen(
                     Text(
                         stringResource(
                             passwordError?.let(AuthMessageMapper::validation)
-                                ?: R.string.auth_password_hint
-                        )
+                                ?: R.string.auth_password_hint,
+                        ),
                     )
-                }
+                },
             )
             OutlinedTextField(
                 value = confirmation,
@@ -125,22 +136,33 @@ fun PasswordRecoveryScreen(
                 singleLine = true,
                 enabled = !isLoading,
                 isError = confirmationError != null,
-                supportingText = { confirmationError?.let { Text(it) } }
+                supportingText = { confirmationError?.let { Text(it) } },
             )
             Button(
                 onClick = { onRecoverPassword(code, password) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && AuthValidator.codeError(code) == null &&
-                        AuthValidator.passwordError(password) == null && password == confirmation
-            ) { Text(if (isLoading) "Actualizando…" else "Actualizar contraseña") }
+                enabled =
+                    !isLoading &&
+                        AuthValidator.codeError(code) == null &&
+                        AuthValidator.passwordError(password) == null &&
+                        password == confirmation,
+            ) {
+                Text(if (isLoading) "Actualizando…" else "Actualizar contraseña")
+            }
             Text(
                 "Si el código expiró o ya se utilizó, solicita uno nuevo.",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
             )
             TextButton(
-                onClick = { code = ""; codeError = null; onRequestCode(recoveryEmail) },
-                enabled = !isLoading
-            ) { Text("Solicitar otro código") }
+                onClick = {
+                    code = ""
+                    codeError = null
+                    onRequestCode(recoveryEmail)
+                },
+                enabled = !isLoading,
+            ) {
+                Text("Solicitar otro código")
+            }
             TextButton(onClick = onChangeEmail, enabled = !isLoading) { Text("Usar otro correo") }
         }
         if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
