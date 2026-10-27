@@ -3,6 +3,12 @@
     <string name="auth_error_network">No se pudo conectar. Verifica tu conexión y vuelve a intentar.</string>
     <string name="auth_error_unexpected">No se pudo completar la operación. Vuelve a intentar.</string>
     <string name="auth_error_invalid_response">El servicio devolvió una respuesta inválida.</string>
+    <string name="auth_error_client_access_denied">Esta aplicación es exclusiva para cuentas de cliente. No tienes acceso desde este dispositivo</string>
+    <string name="auth_error_identity_role">No se pudo verificar un rol válido para esta cuenta. Inicia sesión nuevamente.</string>
+    <string name="auth_error_identity_mismatch">La identidad consultada no corresponde a esta sesión. Inicia sesión nuevamente.</string>
+    <string name="auth_use_another_account">Usar otra cuenta</string>
+    <string name="auth_access_denied">Acceso denegado</string>
+    <string name="auth_dismiss_notice">Aceptar</string>
     <string name="auth_error_credentials">Correo o contraseña incorrectos.</string>
     <string name="auth_error_email_not_confirmed">Confirma tu correo antes de iniciar sesión.</string>
     <string name="auth_error_email_registered">El correo ya está registrado.</string>

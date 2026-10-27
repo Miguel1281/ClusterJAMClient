@@ -3,11 +3,13 @@ package com.clusterjam.mobile.features.auth.data.repository
 import com.clusterjam.mobile.core.network.createRetrofit
 import com.clusterjam.mobile.features.auth.data.local.SecureStorage
 import com.clusterjam.mobile.features.auth.data.remote.AuthApiService
+import com.clusterjam.mobile.features.auth.domain.model.AppRole
 import com.clusterjam.mobile.features.auth.domain.model.AuthCredentials
 import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import com.clusterjam.mobile.features.auth.domain.model.AuthIdentity
 import com.clusterjam.mobile.features.auth.domain.model.AuthSession
 import com.clusterjam.mobile.features.auth.domain.model.RegistrationStatus
+import com.clusterjam.mobile.features.auth.domain.model.VerifiedIdentity
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.util.concurrent.TimeUnit
@@ -17,7 +19,6 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -33,8 +34,7 @@ class AuthApiContractTest {
         server = MockWebServer()
         server.start()
         storage = InMemorySecureStorage()
-        val api = createRetrofit(server.url("/").toString())
-            .create(AuthApiService::class.java)
+        val api = createRetrofit(server.url("/").toString()).create(AuthApiService::class.java)
         repository = AuthRepositoryImpl(api, storage, nowMillis = { NOW_MILLIS })
     }
 
@@ -46,22 +46,28 @@ class AuthApiContractTest {
     @Test
     fun loginStoresTokensAndConvertsLifetimeFromSeconds() = runBlocking {
         enqueueJson(200, sessionJson())
+        enqueueJson(200, """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}""")
 
-        val session = repository.login(
-            AuthCredentials(" $EMAIL ", PASSWORD)
-        ).getOrThrow()
+        val identity =
+            repository
+                .login(
+                    AuthCredentials(" $EMAIL ", PASSWORD),
+                )
+                .getOrThrow()
 
+        assertEquals(VerifiedIdentity(USER_ID, EMAIL, AppRole.CLIENT), identity)
+        val session = requireNotNull(storage.storedSession)
         assertEquals(USER_ID, session.identity.userId)
         assertEquals(EMAIL, session.identity.email)
         assertEquals("access-token", session.accessToken)
         assertEquals("refresh-token", session.refreshToken)
         assertEquals(NOW_MILLIS + 3_600_000L, session.expiresAtMillis)
-        assertEquals(session, storage.storedSession)
         assertRequest(
             "POST",
             "/api/v1/sessions",
-            mapOf("email" to EMAIL, "password" to PASSWORD)
+            mapOf("email" to EMAIL, "password" to PASSWORD),
         )
+        assertRequest("GET", "/api/v1/sessions/current", authorization = "Bearer access-token")
     }
 
     @Test
@@ -69,12 +75,15 @@ class AuthApiContractTest {
         for (status in RegistrationStatus.values()) {
             enqueueJson(
                 201,
-                """{"userId":"$USER_ID","email":"$EMAIL","status":"${status.name}"}"""
+                """{"userId":"$USER_ID","email":"$EMAIL","status":"${status.name}"}""",
             )
 
-            val registration = repository.register(
-                AuthCredentials(EMAIL, PASSWORD)
-            ).getOrThrow()
+            val registration =
+                repository
+                    .register(
+                        AuthCredentials(EMAIL, PASSWORD),
+                    )
+                    .getOrThrow()
 
             assertEquals(AuthIdentity(USER_ID, EMAIL), registration.identity)
             assertEquals(status, registration.status)
@@ -82,7 +91,7 @@ class AuthApiContractTest {
             assertRequest(
                 "POST",
                 "/api/v1/registrations",
-                mapOf("email" to EMAIL, "password" to PASSWORD)
+                mapOf("email" to EMAIL, "password" to PASSWORD),
             )
         }
     }
@@ -100,19 +109,22 @@ class AuthApiContractTest {
         assertRequest(
             "POST",
             "/api/v1/session-renewals",
-            mapOf("refreshToken" to "refresh-token")
+            mapOf("refreshToken" to "refresh-token"),
         )
     }
 
     @Test
-    fun currentIdentityUsesBearerAndAcceptsAdditionalResponseFields() = runBlocking {
+    fun currentIdentityUsesBearerAndVerifiesClientRole() = runBlocking {
         storage.storedSession = existingSession()
         enqueueJson(
             200,
-            """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}"""
+            """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}""",
         )
 
-        assertEquals(AuthIdentity(USER_ID, EMAIL), repository.currentIdentity().getOrThrow())
+        assertEquals(
+            VerifiedIdentity(USER_ID, EMAIL, AppRole.CLIENT),
+            repository.currentIdentity().getOrThrow(),
+        )
 
         assertRequest("GET", "/api/v1/sessions/current", authorization = "Bearer access-token")
     }
@@ -134,7 +146,8 @@ class AuthApiContractTest {
             200,
             """
             {"message":"If the account can receive recovery emails, you will receive instructions."}
-            """.trimIndent()
+            """
+                .trimIndent(),
         )
 
         repository.requestPasswordRecovery(" $EMAIL ").getOrThrow()
@@ -143,7 +156,7 @@ class AuthApiContractTest {
         assertRequest(
             "POST",
             "/api/v1/password-recovery-requests",
-            mapOf("email" to EMAIL)
+            mapOf("email" to EMAIL),
         )
     }
 
@@ -161,8 +174,8 @@ class AuthApiContractTest {
             mapOf(
                 "email" to EMAIL,
                 "code" to "012345",
-                "newPassword" to "NewStrongPassword123!"
-            )
+                "newPassword" to "NewStrongPassword123!",
+            ),
         )
     }
 
@@ -184,12 +197,13 @@ class AuthApiContractTest {
                         "errors":["email must be an email"],
                         "traceId":"4bf92f3577b34da6a3ce929d0e0e4736"
                     }
-                    """.trimIndent()
-                )
+                    """
+                        .trimIndent(),
+                ),
         )
 
-        val failure = repository.login(AuthCredentials(EMAIL, PASSWORD))
-            .exceptionOrNull() as AuthFailure
+        val failure =
+            repository.login(AuthCredentials(EMAIL, PASSWORD)).exceptionOrNull() as AuthFailure
 
         assertEquals("VALIDATION_ERROR", failure.code)
         assertEquals(422, failure.status)
@@ -202,8 +216,8 @@ class AuthApiContractTest {
     fun sessionResponseWithoutTokensIsRejectedWithoutPersistingIt() = runBlocking {
         enqueueJson(200, """{"userId":"$USER_ID","email":"$EMAIL"}""")
 
-        val failure = repository.login(AuthCredentials(EMAIL, PASSWORD))
-            .exceptionOrNull() as AuthFailure
+        val failure =
+            repository.login(AuthCredentials(EMAIL, PASSWORD)).exceptionOrNull() as AuthFailure
 
         assertEquals("INVALID_RESPONSE", failure.code)
         assertNull(storage.storedSession)
@@ -213,8 +227,8 @@ class AuthApiContractTest {
     fun sessionWithInvalidLifetimeIsRejectedWithoutPersistingIt() = runBlocking {
         enqueueJson(200, sessionJson(expiresIn = 0))
 
-        val failure = repository.login(AuthCredentials(EMAIL, PASSWORD))
-            .exceptionOrNull() as AuthFailure
+        val failure =
+            repository.login(AuthCredentials(EMAIL, PASSWORD)).exceptionOrNull() as AuthFailure
 
         assertEquals("INVALID_RESPONSE", failure.code)
         assertNull(storage.storedSession)
@@ -225,7 +239,7 @@ class AuthApiContractTest {
             MockResponse()
                 .setResponseCode(status)
                 .setHeader("Content-Type", "application/json")
-                .setBody(body)
+                .setBody(body),
         )
     }
 
@@ -233,7 +247,7 @@ class AuthApiContractTest {
         method: String,
         path: String,
         body: Map<String, String>? = null,
-        authorization: String? = null
+        authorization: String? = null,
     ) {
         val request: RecordedRequest = requireNotNull(server.takeRequest(2, TimeUnit.SECONDS))
         assertEquals(method, request.method)
@@ -245,32 +259,35 @@ class AuthApiContractTest {
             assertTrue(request.getHeader("Content-Type").orEmpty().startsWith("application/json"))
             assertEquals(
                 Gson().toJsonTree(body),
-                Gson().fromJson(request.body.readUtf8(), JsonObject::class.java)
+                Gson().fromJson(request.body.readUtf8(), JsonObject::class.java),
             )
         }
     }
 
-    private fun existingSession() = AuthSession(
-        AuthIdentity(USER_ID, EMAIL),
-        "access-token",
-        "refresh-token",
-        NOW_MILLIS + 3_600_000L
-    )
+    private fun existingSession() =
+        AuthSession(
+            AuthIdentity(USER_ID, EMAIL),
+            "access-token",
+            "refresh-token",
+            NOW_MILLIS + 3_600_000L,
+        )
 
     private fun sessionJson(
         accessToken: String = "access-token",
         refreshToken: String = "refresh-token",
-        expiresIn: Int = 3600
-    ): String = Gson().toJson(
-        mapOf(
-            "userId" to USER_ID,
-            "email" to EMAIL,
-            "accessToken" to accessToken,
-            "refreshToken" to refreshToken,
-            "expiresIn" to expiresIn,
-            "tokenType" to "bearer"
-        )
-    )
+        expiresIn: Int = 3600,
+    ): String =
+        Gson()
+            .toJson(
+                mapOf(
+                    "userId" to USER_ID,
+                    "email" to EMAIL,
+                    "accessToken" to accessToken,
+                    "refreshToken" to refreshToken,
+                    "expiresIn" to expiresIn,
+                    "tokenType" to "bearer",
+                ),
+            )
 
     private class InMemorySecureStorage : SecureStorage {
         var storedSession: AuthSession? = null

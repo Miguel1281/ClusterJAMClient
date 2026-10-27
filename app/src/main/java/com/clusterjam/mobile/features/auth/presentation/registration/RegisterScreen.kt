@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -23,13 +24,15 @@ import androidx.compose.ui.unit.sp
 import com.clusterjam.mobile.R
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidator
+import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
 
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     onRegisterClick: (String, String) -> Unit,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    error: AuthMessage? = null,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -46,29 +49,32 @@ fun RegisterScreen(
     val emailError = if (email.isBlank()) null else AuthValidator.emailError(email.trim())
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
-            .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier =
+            Modifier.fillMaxSize()
+                .imePadding()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.height(48.dp))
+        error?.let {
+            Text(it.resolve(LocalContext.current), color = MaterialTheme.colorScheme.error)
+        }
 
         Box(
-            modifier = Modifier
-                .size(88.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier.size(88.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = CircleShape,
+                    ),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_tshirt),
                 contentDescription = "Logo Cluster JAM",
                 modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
 
@@ -78,30 +84,30 @@ fun RegisterScreen(
             text = "Cluster JAM",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
             text = "Camisetas Personalizadas",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.Start
+            horizontalAlignment = Alignment.Start,
         ) {
             Text(
                 text = "Crear cuenta",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = "Regístrate como cliente.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp, top = 4.dp)
+                modifier = Modifier.padding(bottom = 24.dp, top = 4.dp),
             )
 
             OutlinedTextField(
@@ -117,7 +123,7 @@ fun RegisterScreen(
                 placeholder = { Text("cliente@ejemplo.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -127,9 +133,10 @@ fun RegisterScreen(
                 onValueChange = {
                     password = it
                     validatePassword(it)
-                    confirmPasswordError = if (
-                        confirmPassword.isNotEmpty() && it != confirmPassword
-                    ) passwordMismatchMessage else null
+                    confirmPasswordError =
+                        if (confirmPassword.isNotEmpty() && it != confirmPassword)
+                            passwordMismatchMessage
+                        else null
                 },
                 label = { Text("Contraseña") },
                 enabled = !isLoading,
@@ -143,10 +150,10 @@ fun RegisterScreen(
                     passwordError?.let { error ->
                         Text(
                             text = stringResource(AuthMessageMapper.validation(error)),
-                            color = MaterialTheme.colorScheme.error
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
-                }
+                },
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -173,10 +180,10 @@ fun RegisterScreen(
                     if (confirmPasswordError != null) {
                         Text(
                             text = confirmPasswordError.orEmpty(),
-                            color = MaterialTheme.colorScheme.error
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
-                }
+                },
             )
         }
 
@@ -185,28 +192,29 @@ fun RegisterScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                ),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "Revisa tus datos",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Text(
                     text = "Si el correo ya está registrado, inicia sesión o recupera tu acceso.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(vertical = 12.dp)
+                    modifier = Modifier.padding(vertical = 12.dp),
                 )
                 OutlinedButton(
                     onClick = onNavigateToLogin,
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
                 ) {
                     Text("Ya tengo una cuenta", fontWeight = FontWeight.SemiBold)
                 }
@@ -216,27 +224,30 @@ fun RegisterScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            enabled = !isLoading && AuthValidator.emailError(email.trim()) == null &&
-                AuthValidator.passwordError(password) == null && password == confirmPassword,
+            enabled =
+                !isLoading &&
+                    AuthValidator.emailError(email.trim()) == null &&
+                    AuthValidator.passwordError(password) == null &&
+                    password == confirmPassword,
             onClick = {
                 val isValid = validatePassword(password)
-                if (isValid && password == confirmPassword &&
-                    AuthValidator.emailError(email.trim()) == null
+                if (
+                    isValid &&
+                        password == confirmPassword &&
+                        AuthValidator.emailError(email.trim()) == null
                 ) {
                     onRegisterClick(email.trim(), password)
                 } else if (password != confirmPassword) {
                     confirmPasswordError = passwordMismatchMessage
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(12.dp),
         ) {
             Text(
                 if (isLoading) "Creando cuenta…" else "Crear mi cuenta",
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
         }
 
@@ -250,7 +261,7 @@ fun RegisterScreenPreview() {
     MaterialTheme {
         RegisterScreen(
             onNavigateToLogin = {},
-            onRegisterClick = { _, _ -> }
+            onRegisterClick = { _, _ -> },
         )
     }
 }
