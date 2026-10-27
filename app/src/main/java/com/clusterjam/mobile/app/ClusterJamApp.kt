@@ -20,12 +20,14 @@ import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
 import com.clusterjam.mobile.features.auth.presentation.AuthViewModel
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
+import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 
 @Composable
 fun ClusterJamApp(
     appViewModel: AppViewModel,
     authViewModel: AuthViewModel,
     loginViewModel: LoginViewModel,
+    registrationViewModel: RegistrationViewModel,
 ) {
     val state by appViewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -108,6 +110,7 @@ fun ClusterJamApp(
                                 identity = identity,
                                 authViewModel = authViewModel,
                                 loginViewModel = loginViewModel,
+                                registrationViewModel = registrationViewModel,
                                 isSessionBusy = state.isBusy,
                                 onLogout = {
                                     loginViewModel.clearError()

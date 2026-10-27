@@ -9,6 +9,7 @@ import com.clusterjam.mobile.app.ClusterJamApp
 import com.clusterjam.mobile.app.di.ViewModelFactories
 import com.clusterjam.mobile.features.auth.presentation.AuthViewModel
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
+import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,7 +20,8 @@ class MainActivity : ComponentActivity() {
             val authViewModel: AuthViewModel = viewModel(factory = factory)
             val appViewModel: AppViewModel = viewModel(factory = factory)
             val loginViewModel: LoginViewModel = viewModel(factory = factory)
-            ClusterJamApp(appViewModel, authViewModel, loginViewModel)
+            val registrationViewModel: RegistrationViewModel = viewModel(factory = factory)
+            ClusterJamApp(appViewModel, authViewModel, loginViewModel, registrationViewModel)
         }
     }
 }

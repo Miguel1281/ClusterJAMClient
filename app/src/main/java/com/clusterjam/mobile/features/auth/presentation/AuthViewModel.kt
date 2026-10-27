@@ -3,9 +3,7 @@ package com.clusterjam.mobile.features.auth.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clusterjam.mobile.R
-import com.clusterjam.mobile.features.auth.domain.model.AuthCredentials
 import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
-import com.clusterjam.mobile.features.auth.domain.model.RegistrationStatus
 import com.clusterjam.mobile.features.auth.domain.repository.AuthRepository
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
 import kotlinx.coroutines.CancellationException
@@ -31,16 +29,6 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     val uiState = _uiState.asStateFlow()
     private val events = Channel<AuthEvent>(Channel.BUFFERED)
     val authEvent = events.receiveAsFlow()
-
-    fun register(email: String, password: String) = perform {
-        val registration = repository.register(AuthCredentials(email.trim(), password)).getOrThrow()
-        val message =
-            when (registration.status) {
-                RegistrationStatus.PENDING_EMAIL_CONFIRMATION -> R.string.auth_registered_pending
-                RegistrationStatus.ACTIVE -> R.string.auth_registered_active
-            }
-        events.send(AuthEvent.Notice(AuthMessage(message), returnToLogin = true))
-    }
 
     fun beginRecovery() {
         _uiState.update { it.copy(recoveryEmail = null, error = null) }

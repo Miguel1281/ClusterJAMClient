@@ -3,6 +3,7 @@ package com.clusterjam.mobile.features.auth.presentation.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clusterjam.mobile.features.auth.domain.model.AuthCredentials
+import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.repository.AuthRepository
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
@@ -16,7 +17,10 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     val uiState = _uiState.asStateFlow()
 
     fun changeEmail(value: String) {
-        if (!_uiState.value.isLoading) _uiState.update { it.copy(email = value, error = null) }
+        if (!_uiState.value.isLoading)
+            _uiState.update {
+                it.copy(email = value, error = null, emailAwaitingConfirmation = null)
+            }
     }
 
     fun changePassword(value: String) {
@@ -24,19 +28,26 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     }
 
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, emailAwaitingConfirmation = null) }
     }
 
     fun login() {
         val form = _uiState.value
         if (!form.canSubmit) return
-        _uiState.update { it.copy(isLoading = true, error = null) }
+        _uiState.update {
+            it.copy(isLoading = true, error = null, emailAwaitingConfirmation = null)
+        }
         viewModelScope.launch {
             try {
                 val result = repository.login(AuthCredentials(form.email.trim(), form.password))
                 _uiState.update {
                     it.copy(
                         password = "",
+                        emailAwaitingConfirmation =
+                            form.email.trim().takeIf {
+                                (result.exceptionOrNull() as? AuthFailure)?.code ==
+                                    "EMAIL_NOT_CONFIRMED"
+                            },
                         error =
                             result
                                 .exceptionOrNull()

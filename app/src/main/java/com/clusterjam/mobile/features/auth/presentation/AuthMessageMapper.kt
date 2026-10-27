@@ -27,6 +27,8 @@ object AuthMessageMapper {
                 "IDENTITY_MISMATCH" -> R.string.auth_error_identity_mismatch
                 "INVALID_CREDENTIALS" -> R.string.auth_error_credentials
                 "EMAIL_NOT_CONFIRMED" -> R.string.auth_error_email_not_confirmed
+                "INVALID_EMAIL_CONFIRMATION_CODE" -> R.string.auth_error_confirmation_code
+                "EMAIL_CONFIRMATION_NOT_ALLOWED" -> R.string.auth_error_confirmation_not_allowed
                 "EMAIL_ALREADY_REGISTERED" -> R.string.auth_error_email_registered
                 "INVALID_EMAIL" -> R.string.auth_error_invalid_email
                 "WEAK_PASSWORD" -> R.string.auth_error_weak_password

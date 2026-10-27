@@ -8,6 +8,7 @@ data class LoginUiState(
     val password: String = "",
     val isLoading: Boolean = false,
     val error: AuthMessage? = null,
+    val emailAwaitingConfirmation: String? = null,
 ) {
     val emailError
         get() = if (email.isBlank()) null else AuthValidator.emailError(email.trim())

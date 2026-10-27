@@ -9,6 +9,7 @@ import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import com.clusterjam.mobile.features.auth.domain.model.AuthIdentity
 import com.clusterjam.mobile.features.auth.domain.model.AuthSession
 import com.clusterjam.mobile.features.auth.domain.model.RegistrationStatus
+import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.model.VerifiedIdentity
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -232,6 +233,102 @@ class AuthApiContractTest {
 
         assertEquals("INVALID_RESPONSE", failure.code)
         assertNull(storage.storedSession)
+    }
+
+    @Test
+    fun confirmationPreservesLeadingZeroAndOpensOnlyAVerifiedCustomerSession() = runBlocking {
+        enqueueJson(200, sessionJson())
+        enqueueJson(200, """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}""")
+
+        repository.confirmEmail(" $EMAIL ", "012345").getOrThrow()
+
+        assertTrue(repository.sessionState.value is SessionState.Authenticated)
+        assertEquals("access-token", storage.storedSession?.accessToken)
+        assertRequest(
+            "POST",
+            "/api/v1/registrations/email-confirmations",
+            mapOf("email" to EMAIL, "code" to "012345"),
+        )
+        assertRequest("GET", "/api/v1/sessions/current", authorization = "Bearer access-token")
+    }
+
+    @Test
+    fun identityRetryAfterConfirmationNeverSubmitsTheConsumedCodeAgain() = runBlocking {
+        enqueueJson(200, sessionJson())
+        enqueueJson(503, """{"code":"SERVICE_UNAVAILABLE"}""")
+
+        // Confirmation completed even though access is still waiting for identity verification.
+        repository.confirmEmail(EMAIL, "012345").getOrThrow()
+        assertTrue(repository.sessionState.value is SessionState.RecoverableError)
+        assertEquals("refresh-token", storage.storedSession?.refreshToken)
+        enqueueJson(200, """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}""")
+        repository.currentIdentity().getOrThrow()
+
+        assertTrue(repository.sessionState.value is SessionState.Authenticated)
+        assertRequest(
+            "POST",
+            "/api/v1/registrations/email-confirmations",
+            mapOf("email" to EMAIL, "code" to "012345"),
+        )
+        repeat(2) {
+            assertRequest("GET", "/api/v1/sessions/current", authorization = "Bearer access-token")
+        }
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun confirmationErrorsNeverReplayAndResendUses202WithRetryAfter() = runBlocking {
+        repository.restoreSession().getOrThrow()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/problem+json")
+                .setHeader("Retry-After", "5")
+                .setBody("""{"code":"INVALID_EMAIL_CONFIRMATION_CODE"}"""),
+        )
+        val failure = repository.confirmEmail(EMAIL, "012345").exceptionOrNull() as AuthFailure
+        assertEquals("INVALID_EMAIL_CONFIRMATION_CODE", failure.code)
+        assertEquals(401, failure.status)
+        assertEquals(5000L, failure.retryAfterMillis)
+        assertEquals(SessionState.Unauthenticated, repository.sessionState.value)
+        assertNull(storage.storedSession)
+        // NOW_MILLIS is 2023-11-14 22:13:20 UTC: exercise HTTP-date as well as seconds.
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(202)
+                .setHeader("Content-Type", "application/json")
+                .setHeader("Retry-After", "Tue, 14 Nov 2023 22:13:23 GMT")
+                .setBody("""{"message":"Neutral confirmation request."}"""),
+        )
+        assertEquals(
+            3000L,
+            repository.requestEmailConfirmation(" $EMAIL ").getOrThrow().retryAfterMillis,
+        )
+        assertRequest(
+            "POST",
+            "/api/v1/registrations/email-confirmations",
+            mapOf("email" to EMAIL, "code" to "012345"),
+        )
+        assertRequest(
+            "POST",
+            "/api/v1/registrations/email-confirmation-requests",
+            mapOf("email" to EMAIL),
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(503)
+                .setHeader("Content-Type", "application/problem+json")
+                .setHeader("Retry-After", "0")
+                .setBody("""{"code":"SERVICE_UNAVAILABLE"}"""),
+        )
+        val unavailable = repository.confirmEmail(EMAIL, "012345").exceptionOrNull() as AuthFailure
+        assertEquals(503, unavailable.status)
+        assertRequest(
+            "POST",
+            "/api/v1/registrations/email-confirmations",
+            mapOf("email" to EMAIL, "code" to "012345"),
+        )
+        assertEquals(3, server.requestCount)
     }
 
     private fun enqueueJson(status: Int, body: String) {

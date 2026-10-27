@@ -9,7 +9,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +25,7 @@ import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidator
 import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
+import kotlinx.coroutines.delay
 
 @Composable
 fun RegisterScreen(
@@ -33,8 +33,10 @@ fun RegisterScreen(
     onRegisterClick: (String, String) -> Unit,
     isLoading: Boolean = false,
     error: AuthMessage? = null,
+    email: String = "",
+    onEmailChange: (String) -> Unit = {},
+    retryAtMillis: Long = 0,
 ) {
-    var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
@@ -47,6 +49,15 @@ fun RegisterScreen(
         return passwordError == null
     }
     val emailError = if (email.isBlank()) null else AuthValidator.emailError(email.trim())
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(retryAtMillis) {
+        now = System.currentTimeMillis()
+        while (now < retryAtMillis) {
+            delay(1000)
+            now = System.currentTimeMillis()
+        }
+    }
+    val remaining = (retryAtMillis - now).coerceAtLeast(0)
 
     Column(
         modifier =
@@ -59,6 +70,10 @@ fun RegisterScreen(
         Spacer(modifier = Modifier.height(48.dp))
         error?.let {
             Text(it.resolve(LocalContext.current), color = MaterialTheme.colorScheme.error)
+        }
+        if (remaining > 0) {
+            val seconds = remaining / 1000 + if (remaining % 1000 > 0) 1 else 0
+            Text(stringResource(R.string.auth_confirmation_retry_after, seconds))
         }
 
         Box(
@@ -112,7 +127,7 @@ fun RegisterScreen(
 
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = onEmailChange,
                 enabled = !isLoading,
                 singleLine = true,
                 isError = emailError != null,
@@ -226,6 +241,7 @@ fun RegisterScreen(
         Button(
             enabled =
                 !isLoading &&
+                    remaining == 0L &&
                     AuthValidator.emailError(email.trim()) == null &&
                     AuthValidator.passwordError(password) == null &&
                     password == confirmPassword,
