@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clusterjam.mobile.R
+import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
 
 @Composable
@@ -31,6 +32,8 @@ fun LoginScreen(
     state: LoginUiState = LoginUiState(),
     onEmailChange: (String) -> Unit = {},
     onPasswordChange: (String) -> Unit = {},
+    onEmailConfirmationClick: () -> Unit = {},
+    notice: AuthMessage? = null,
 ) {
     val context = LocalContext.current
     val email = state.email
@@ -97,9 +100,15 @@ fun LoginScreen(
                 modifier = Modifier.padding(bottom = 24.dp, top = 4.dp),
             )
 
+            notice?.let { Text(it.resolve(context)) }
             state.error?.let {
                 Text(it.resolve(context), color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(12.dp))
+            }
+            if (state.emailAwaitingConfirmation != null) {
+                TextButton(onClick = onEmailConfirmationClick, enabled = !isLoading) {
+                    Text(stringResource(R.string.auth_confirmation_title))
+                }
             }
             OutlinedTextField(
                 value = email,

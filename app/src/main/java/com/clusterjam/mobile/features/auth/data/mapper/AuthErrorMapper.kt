@@ -1,6 +1,7 @@
 package com.clusterjam.mobile.features.auth.data.mapper
 
 import com.clusterjam.mobile.core.network.ProblemDetailsParser
+import com.clusterjam.mobile.core.network.parseRetryAfterMillis
 import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import java.io.IOException
 import retrofit2.HttpException
@@ -18,6 +19,7 @@ internal fun mapAuthError(error: Exception): AuthFailure {
         code = problem?.code?.takeIf { it.isNotBlank() } ?: "HTTP_$status",
         status = status,
         validationErrors = problem?.errors.orEmpty().filterNotNull().filter { it.isNotBlank() },
-        traceId = problem?.traceId?.takeIf { it.isNotBlank() }
+        traceId = problem?.traceId?.takeIf { it.isNotBlank() },
+        retryAfterMillis = parseRetryAfterMillis(error.response()?.headers()?.get("Retry-After")),
     )
 }

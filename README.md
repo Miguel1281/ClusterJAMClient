@@ -2,7 +2,8 @@
 
 Cliente Android con Kotlin y Jetpack Compose. La autenticación consume Auth Service mediante
 Retrofit. `AppViewModel` coordina la sesión global, `LoginViewModel` conserva el formulario de
-acceso y `AuthViewModel` mantiene transitoriamente registro y recuperación.
+acceso, `RegistrationViewModel` comparte registro y confirmación del correo, y `AuthViewModel`
+mantiene transitoriamente la recuperación de contraseña.
 
 ## Organización del proyecto
 
@@ -22,13 +23,12 @@ Dentro de `com.clusterjam.mobile`:
   y coordinación del repositorio. Los DTO de solicitudes son independientes de los modelos del dominio.
 - `features/auth/domain`: identidad básica, identidad verificada con rol, estados de sesión,
   interfaz del repositorio y validación; no depende de Android, Compose ni Retrofit.
-- `features/auth/presentation`: formulario y `LoginViewModel`, `AuthViewModel` transitorio y traducción
+- `features/auth/presentation`: formularios, `LoginViewModel`, `RegistrationViewModel`, `AuthViewModel` transitorio y traducción
   de fallos a mensajes locales de `strings.xml`. Solo consume el contrato del repositorio.
 - `features/catalog/presentation` y `features/profile/presentation`: prototipos existentes.
 
-`AuthViewModel` conserva temporalmente registro y recuperación; estos flujos se separarán en
-sus ramas funcionales. Continúan integradas siete operaciones Auth; la confirmación de correo
-se incorporará en la rama 5.
+Están integradas las nueve operaciones Auth. `AuthViewModel` conserva temporalmente la
+recuperación de contraseña; ese flujo se separará en la rama 7.
 
 Los health checks se consultan directamente mediante `AppContainer.healthApiService`, separado
 de la API y del repositorio Auth. No necesitan sesión y no condicionan login ni catálogo.
@@ -66,6 +66,8 @@ la dirección de un despliegue debe utilizar HTTPS.
 | Operación | Método y ruta | Respuesta esperada |
 | --- | --- | --- |
 | Registro | `POST /api/v1/registrations` | `201`, identidad y estado; no devuelve tokens |
+| Confirmar correo | `POST /api/v1/registrations/email-confirmations` | `200`, sesión con ambos tokens |
+| Reenviar confirmación | `POST /api/v1/registrations/email-confirmation-requests` | `202`, mensaje neutral |
 | Login | `POST /api/v1/sessions` | `200`, sesión con ambos tokens |
 | Renovación | `POST /api/v1/session-renewals` | `200`, sesión con tokens renovados |
 | Identidad actual | `GET /api/v1/sessions/current` | `200`, identidad con `appRole` |
@@ -77,7 +79,35 @@ la dirección de un despliegue debe utilizar HTTPS.
 
 Solo la consulta y el cierre de sesión actual envían `Authorization: Bearer <accessToken>`.
 `expiresIn` se recibe en segundos y se convierte a una expiración absoluta en milisegundos.
-Los códigos de recuperación se envían como cadenas de seis dígitos para conservar ceros iniciales.
+Los códigos de confirmación y recuperación se envían como cadenas de seis dígitos para conservar ceros iniciales.
+
+## Registro y confirmación del correo
+
+Un registro `PENDING_EMAIL_CONFIRMATION` abre la pantalla de confirmación con el correo
+precargado. Un registro `ACTIVE` vuelve a login con un aviso, porque el registro no entrega
+tokens. Si login devuelve `EMAIL_NOT_CONFIRMED`, ofrece **Confirmar correo** con ese correo.
+Entrar o volver a estas pantallas no envía solicitudes automáticamente.
+
+`RegistrationViewModel` coordina formulario, registro, espera del código, confirmación, reenvío,
+error y finalización. Permite editar el correo pendiente y reenviar por una acción explícita.
+El `202` de reenvío solo muestra un mensaje neutral: no acredita que la cuenta exista ni que
+el correo haya llegado. Se muestran errores locales para código inválido, confirmación no
+permitida, validación, límite de solicitudes y falta de disponibilidad. Si el servidor devuelve
+`Retry-After`, se espera el plazo indicado antes de enviar otra solicitud; el contador no valida
+la expiración del código, que corresponde al servidor.
+
+Solo el correo y la etapa se conservan en `SavedStateHandle`. La contraseña y el OTP no se
+guardan en preferencias, estado guardado, logs ni argumentos de navegación. Tras recrear el
+proceso, el campo del código queda vacío y debe introducirse de nuevo; no se confirma ni se
+reenvía automáticamente. Los envíos en curso deshabilitan las acciones para evitar duplicados.
+
+Al confirmar con `200`, el repositorio guarda la sesión y consulta la identidad con las mismas
+reglas de acceso exclusivo para clientes que usa login. No hace falta iniciar sesión otra vez.
+Si esa consulta falla temporalmente, conserva los tokens y ofrece reintentar **la identidad**,
+sin volver a enviar el código consumido. El éxito de `confirmEmail` indica que el POST terminó;
+el acceso depende de `SessionState`. El transporte tampoco repite automáticamente peticiones
+tras un fallo de conexión. Ante un resultado incierto, el usuario puede intentar login o
+solicitar otro código de forma explícita.
 
 ## Identidad verificada y acceso Android
 
@@ -109,7 +139,7 @@ Mientras se comprueba identidad o se muestra un rechazo/error recuperable, el gr
 de navegación no está compuesto. Al salir del estado autenticado se descarta su pila; el botón
 Atrás no puede recuperar catálogo o perfil. `AppViewModel` dirige esta transición desde el estado
 observable; el formulario no autentica por su cuenta ni depende de recibir un aviso pasajero.
-La futura confirmación de correo reutilizará el establecimiento y verificación de sesión del
+La confirmación de correo reutiliza el establecimiento y verificación de sesión del
 repositorio, sin exigir un login adicional ni duplicar las reglas del rol.
 
 Los errores HTTP se interpretan como Problem Details. `AuthFailure` conserva el código, el estado
@@ -165,8 +195,15 @@ y ausencia de pantallas privadas tras pulsar Atrás. Con un emulador disponible:
 
 Estas pruebas usan MockWebServer y almacenamiento ficticio; no prueban cuentas reales de Supabase
 ni la conservación de una sesión de Windows contra un despliegue real.
-En esta rama se verificaron 52 pruebas JVM y cuatro pruebas Compose en Pixel_8 (API 36), todas
-aprobadas, además de formato, Android Lint y construcción debug y del APK de instrumentación.
+La rama 4 verificó 52 pruebas JVM y cuatro pruebas Compose en Pixel_8 (API 36), todas aprobadas.
+La confirmación añade solo seis pruebas JVM esenciales: contrato HTTP y código con cero inicial,
+reintento de identidad sin repetir el OTP, errores/reenvío con `Retry-After`, restauración sin
+secretos ni reenvío automático, prevención de doble envío y entrada desde login. Usan
+MockWebServer, almacenamiento ficticio y reloj controlado; no requieren credenciales reales.
+En la rama 5 pasaron las 58 pruebas JVM, formato, Android Lint y las construcciones del APK
+debug y del APK de instrumentación. Las pruebas Compose existentes se adaptaron al nuevo
+ViewModel, pero no se ejecutaron en emulador durante esta rama.
+La comprobación del correo recibido y del flujo completo contra el backend real queda pendiente.
 
 ## Verificación y entrega en GitHub Actions
 

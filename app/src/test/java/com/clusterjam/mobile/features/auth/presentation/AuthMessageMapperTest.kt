@@ -19,6 +19,8 @@ class AuthMessageMapperTest {
                 "INVALID_IDENTITY_ROLE" to R.string.auth_error_identity_role,
                 "IDENTITY_MISMATCH" to R.string.auth_error_identity_mismatch,
                 "EMAIL_NOT_CONFIRMED" to R.string.auth_error_email_not_confirmed,
+                "INVALID_EMAIL_CONFIRMATION_CODE" to R.string.auth_error_confirmation_code,
+                "EMAIL_CONFIRMATION_NOT_ALLOWED" to R.string.auth_error_confirmation_not_allowed,
                 "EMAIL_ALREADY_REGISTERED" to R.string.auth_error_email_registered,
                 "INVALID_EMAIL" to R.string.auth_error_invalid_email,
                 "WEAK_PASSWORD" to R.string.auth_error_weak_password,

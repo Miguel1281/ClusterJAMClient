@@ -15,6 +15,15 @@ class FakeAuthRepository : AuthRepository {
     var loginAction: suspend (AuthCredentials) -> Result<VerifiedIdentity> = {
         Result.failure(AuthFailure("INVALID_CREDENTIALS"))
     }
+    var registerAction: suspend (AuthCredentials) -> Result<RegistrationResult> = {
+        Result.failure(AuthFailure("UNEXPECTED_ERROR"))
+    }
+    var confirmationAction: suspend (String, String) -> Result<Unit> = { _, _ ->
+        Result.success(Unit)
+    }
+    var confirmationRequestAction: suspend (String) -> Result<EmailConfirmationRequestResult> = {
+        Result.success(EmailConfirmationRequestResult())
+    }
     var logoutAction: suspend () -> Result<Unit> = {
         states.value = SessionState.Unauthenticated
         Result.success(Unit)
@@ -42,7 +51,11 @@ class FakeAuthRepository : AuthRepository {
         Result.failure(AuthFailure("SESSION_ENDED"))
 
     override suspend fun register(credentials: AuthCredentials): Result<RegistrationResult> =
-        Result.failure(AuthFailure("UNEXPECTED_ERROR"))
+        registerAction(credentials)
+
+    override suspend fun confirmEmail(email: String, code: String) = confirmationAction(email, code)
+
+    override suspend fun requestEmailConfirmation(email: String) = confirmationRequestAction(email)
 
     override suspend fun requestPasswordRecovery(email: String) = Result.success(Unit)
 

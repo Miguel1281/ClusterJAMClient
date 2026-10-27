@@ -1,5 +1,6 @@
 package com.clusterjam.mobile.features.auth.data.repository
 
+import com.clusterjam.mobile.core.network.parseRetryAfterMillis
 import com.clusterjam.mobile.features.auth.data.local.SecureStorage
 import com.clusterjam.mobile.features.auth.data.mapper.mapAuthError
 import com.clusterjam.mobile.features.auth.data.mapper.toIdentity
@@ -7,6 +8,8 @@ import com.clusterjam.mobile.features.auth.data.mapper.toRegistration
 import com.clusterjam.mobile.features.auth.data.mapper.toSession
 import com.clusterjam.mobile.features.auth.data.mapper.toVerifiedIdentity
 import com.clusterjam.mobile.features.auth.data.remote.AuthApiService
+import com.clusterjam.mobile.features.auth.data.remote.dto.ConfirmEmailRequestDto
+import com.clusterjam.mobile.features.auth.data.remote.dto.EmailConfirmationRequestDto
 import com.clusterjam.mobile.features.auth.data.remote.dto.LoginRequestDto
 import com.clusterjam.mobile.features.auth.data.remote.dto.PasswordRecoveryRequestDto
 import com.clusterjam.mobile.features.auth.data.remote.dto.RecoverPasswordRequestDto
@@ -17,6 +20,7 @@ import com.clusterjam.mobile.features.auth.domain.model.AuthCredentials
 import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import com.clusterjam.mobile.features.auth.domain.model.AuthIdentity
 import com.clusterjam.mobile.features.auth.domain.model.AuthSession
+import com.clusterjam.mobile.features.auth.domain.model.EmailConfirmationRequestResult
 import com.clusterjam.mobile.features.auth.domain.model.RegistrationResult
 import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.model.StorageAction
@@ -72,6 +76,49 @@ class AuthRepositoryImpl(
         apiService
             .register(RegistrationRequestDto(request.email, request.password))
             .toRegistration()
+    }
+
+    override suspend fun confirmEmail(email: String, code: String): Result<Unit> = capture {
+        sessionMutex.withLock {
+            val normalized = email.trim()
+            validateEmail(normalized)
+            AuthValidator.codeError(code)?.let { invalid(it) }
+            val response = apiService.confirmEmail(ConfirmEmailRequestDto(normalized, code))
+            if (!response.isSuccessful) throw HttpException(response)
+            _sessionState.value = SessionState.Checking
+            try {
+                if (response.code() != 200) throw AuthFailure("INVALID_RESPONSE")
+                val session =
+                    response.body()?.toSession(nowMillis()) ?: throw AuthFailure("INVALID_RESPONSE")
+                establishSessionLocked(session)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val failure = mapAuthError(error)
+                if (
+                    _sessionState.value == SessionState.Checking ||
+                        _sessionState.value == SessionState.Unauthenticated
+                ) {
+                    _sessionState.value = SessionState.RecoverableError(failure)
+                }
+                // The OTP was already consumed. Recovery continues through the global session
+                // state.
+            }
+            Unit
+        }
+    }
+
+    override suspend fun requestEmailConfirmation(
+        email: String,
+    ): Result<EmailConfirmationRequestResult> = capture {
+        val normalized = email.trim()
+        validateEmail(normalized)
+        val response = apiService.requestEmailConfirmation(EmailConfirmationRequestDto(normalized))
+        if (!response.isSuccessful) throw HttpException(response)
+        if (response.code() != 202) throw AuthFailure("INVALID_RESPONSE")
+        EmailConfirmationRequestResult(
+            parseRetryAfterMillis(response.headers()["Retry-After"], nowMillis()),
+        )
     }
 
     override suspend fun restoreSession(): Result<VerifiedIdentity?> = capture {
@@ -153,7 +200,7 @@ class AuthRepositoryImpl(
         }
     }
 
-    // Login and future email confirmation both establish tokens, then use this verification.
+    // Login and email confirmation both establish tokens, then use this verification.
     private suspend fun establishSessionLocked(session: AuthSession): VerifiedIdentity {
         secureStorage.saveSession(session)
         rejectedSession = null
