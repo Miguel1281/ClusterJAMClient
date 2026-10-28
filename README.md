@@ -2,8 +2,8 @@
 
 Cliente Android con Kotlin y Jetpack Compose. La autenticación consume Auth Service mediante
 Retrofit. `AppViewModel` coordina la sesión global, `LoginViewModel` conserva el formulario de
-acceso, `RegistrationViewModel` comparte registro y confirmación del correo, y `AuthViewModel`
-mantiene transitoriamente la recuperación de contraseña.
+acceso, `RegistrationViewModel` comparte registro y confirmación del correo, y
+`PasswordRecoveryViewModel` coordina la recuperación de contraseña.
 
 ## Organización del proyecto
 
@@ -24,12 +24,12 @@ Dentro de `com.clusterjam.mobile`:
   y coordinación del repositorio. Los DTO de solicitudes son independientes de los modelos del dominio.
 - `features/auth/domain`: identidad básica, identidad verificada con rol, estados de sesión,
   interfaz del repositorio y validación; no depende de Android, Compose ni Retrofit.
-- `features/auth/presentation`: formularios, `LoginViewModel`, `RegistrationViewModel`, `AuthViewModel` transitorio y traducción
+- `features/auth/presentation`: formularios, `LoginViewModel`, `RegistrationViewModel`, `PasswordRecoveryViewModel` y traducción
   de fallos a mensajes locales de `strings.xml`. Solo consume el contrato del repositorio.
 - `features/catalog/presentation` y `features/profile/presentation`: prototipos existentes.
 
-Están integradas las nueve operaciones Auth. `AuthViewModel` conserva temporalmente la
-recuperación de contraseña; ese flujo se separará en la rama 7.
+Están integradas las nueve operaciones Auth. Cada formulario tiene su ViewModel; el estado
+global y la coordinación de sesión siguen en `AppViewModel` y el repositorio compartido.
 
 Los health checks se consultan directamente mediante `AppContainer.healthApiService`, separado
 de la API y del repositorio Auth. No necesitan sesión y no condicionan login ni catálogo.
@@ -117,6 +117,40 @@ sin volver a enviar el código consumido. El éxito de `confirmEmail` indica que
 el acceso depende de `SessionState`. El transporte tampoco repite automáticamente peticiones
 tras un fallo de conexión. Ante un resultado incierto, el usuario puede intentar login o
 solicitar otro código de forma explícita.
+
+## Recuperación de contraseña
+
+Login y perfil permiten abrir el mismo formulario de recuperación. `PasswordRecoveryViewModel`
+y `PasswordRecoveryUiState` conservan el correo normalizado y distinguen solicitud, captura,
+envío, necesidad de un código nuevo, error y finalización. El correo admite hasta 254 caracteres;
+el código se trata como String de seis dígitos y la contraseña requiere al menos ocho caracteres.
+Su confirmación se valida solo en Android y no se envía al servidor.
+
+Solicitar o reenviar requiere pulsar el botón: entrar, recomponer o restaurar la pantalla no
+realiza ninguna llamada. El `200` de solicitud muestra un mensaje neutral, sin confirmar que
+exista una cuenta ni que el correo haya sido entregado. Los envíos se bloquean mientras otro
+está en curso y se respeta `Retry-After` si el servidor devuelve un error con esa cabecera.
+
+Los errores `INVALID_RECOVERY_CODE`, `WEAK_PASSWORD`, `SAME_PASSWORD` y
+`PASSWORD_RECOVERY_NOT_ALLOWED` tienen mensajes locales. Tras un fallo de actualización,
+incluido `503` o pérdida de conexión, se conservan el correo y el error, se limpian código y
+contraseñas y se pide un código nuevo antes de volver a actualizar. El código anterior pudo
+haberse consumido; un resultado incierto tampoco demuestra que la contraseña siga igual.
+El usuario puede solicitar otro código o volver e intentar login. No se repite la recuperación
+automáticamente ni se activa refresh por un error de OTP.
+
+Después del `204`, `PasswordRecoveryResult` confirma el cambio remoto y comunica por separado
+un posible `cleanupFailure`. El repositorio usa la limpieza y el estado global existentes para
+retirar la navegación privada y volver a login. Si falla el borrado local, se muestra que la
+contraseña ya cambió, se mantiene bloqueado el acceso y **Reintentar cierre local** solo borra
+la sesión; no vuelve a enviar la contraseña ni el OTP. El aviso de éxito es estado persistente
+en memoria y no depende de consumir un Toast a tiempo.
+
+Solo el correo y una etapa retomable se guardan en `SavedStateHandle`. El código, la contraseña
+y su confirmación no se guardan en preferencias, logs, navegación ni estado restaurable.
+Se limpian al terminar, reenviar, cambiar correo o abandonar la pantalla. Al recrear el proceso,
+se solicita introducirlos otra vez sin reenvíos automáticos. El `AuthViewModel` transitorio y
+sus eventos se retiraron al quedar sin responsabilidades.
 
 ## Identidad verificada y acceso Android
 
@@ -259,12 +293,21 @@ La comprobación del correo recibido y del flujo completo contra el backend real
 La rama 6 añade nueve pruebas JVM puntuales de expiración, concurrencia, rechazo/espera de
 refresh, cierre con operaciones pendientes, alcance de autorización y fallos de almacenamiento.
 También amplía casos existentes de cierre en presentación y mensajes de almacenamiento.
-El conjunto suma 67 pruebas JVM. La comprobación de las preferencias usa dobles: no sustituye
+En esa rama el conjunto sumó 67 pruebas JVM. La comprobación de las preferencias usa dobles: no sustituye
 una prueba del keystore real en un dispositivo. Las pruebas Compose existentes se compilan,
 pero no se ejecutan en emulador en esta etapa.
 Pasaron las 67 pruebas, formato, Lint de ambas variantes y las construcciones debug, release
 sin firma y del APK de instrumentación. También se verificó el rechazo de release sin URL
 explícita o con HTTP; estas comprobaciones no contactan con el backend.
+
+La rama 7 añade solo cinco pruebas: dos de contrato HTTP y tres del formulario de recuperación.
+Cubren los errores principales, la ausencia de refresh o reenvío automático, el `204` con
+limpieza fallida, la conservación del correo, la restauración sin secretos y el doble envío.
+El conjunto actual suma 72 pruebas JVM. Se mantienen los casos de código con cero inicial y
+`204` sin cuerpo. En esta rama pasaron las 72 pruebas, formato, Lint de debug/release y las
+construcciones debug, release sin firma y del APK de instrumentación. No se ejecutaron las
+pruebas en emulador. La recepción de correos y la recuperación contra el backend real quedan
+pendientes de la validación en dispositivo de la rama 8.
 
 ## Verificación y entrega en GitHub Actions
 

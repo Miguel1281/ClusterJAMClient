@@ -14,8 +14,8 @@ import com.clusterjam.mobile.features.auth.data.local.SecureStorage
 import com.clusterjam.mobile.features.auth.data.remote.AuthApiService
 import com.clusterjam.mobile.features.auth.data.repository.AuthRepositoryImpl
 import com.clusterjam.mobile.features.auth.domain.model.*
-import com.clusterjam.mobile.features.auth.presentation.AuthViewModel
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
+import com.clusterjam.mobile.features.auth.presentation.recovery.PasswordRecoveryViewModel
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -56,10 +56,10 @@ class VerifiedCustomerNavigationTest {
         compose.setContent {
             val appViewModel: AppViewModel = viewModel(factory = factory)
             val loginViewModel: LoginViewModel = viewModel(factory = factory)
-            val authViewModel: AuthViewModel = viewModel(factory = factory)
+            val recoveryViewModel: PasswordRecoveryViewModel = viewModel(factory = factory)
             app = appViewModel
             val registrationViewModel: RegistrationViewModel = viewModel(factory = factory)
-            ClusterJamApp(appViewModel, authViewModel, loginViewModel, registrationViewModel)
+            ClusterJamApp(appViewModel, recoveryViewModel, loginViewModel, registrationViewModel)
         }
     }
 

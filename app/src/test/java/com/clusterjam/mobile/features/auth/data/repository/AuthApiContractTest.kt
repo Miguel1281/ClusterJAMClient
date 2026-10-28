@@ -166,8 +166,11 @@ class AuthApiContractTest {
         storage.storedSession = existingSession()
         server.enqueue(MockResponse().setResponseCode(204))
 
-        repository.recoverPassword(EMAIL, "012345", "NewStrongPassword123!").getOrThrow()
+        val updated =
+            repository.recoverPassword(EMAIL, "012345", "NewStrongPassword123!").getOrThrow()
 
+        assertNull(updated.cleanupFailure)
+        assertEquals(SessionState.Unauthenticated, repository.sessionState.value)
         assertNull(storage.storedSession)
         assertRequest(
             "POST",
@@ -331,6 +334,90 @@ class AuthApiContractTest {
         assertEquals(3, server.requestCount)
     }
 
+    @Test
+    fun successfulRecoveryDoesNotRepeatTheOtpWhenLocalCleanupFails() = runBlocking {
+        storage.storedSession = existingSession()
+        storage.failClear = true
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = repository.recoverPassword(EMAIL, "012345", "NewPassword123!").getOrThrow()
+
+        assertEquals("STORAGE_ERROR", result.cleanupFailure?.code)
+        assertEquals(
+            com.clusterjam.mobile.features.auth.domain.model.StorageAction.CLEAR,
+            result.cleanupFailure?.storageAction,
+        )
+        assertTrue(repository.sessionState.value is SessionState.AccessDenied)
+        assertTrue(repository.restoreSession().isFailure)
+        assertTrue(storage.storedSession != null)
+        storage.failClear = false
+        repository.discardSession().getOrThrow()
+        assertNull(storage.storedSession)
+        assertEquals(SessionState.Unauthenticated, repository.sessionState.value)
+        assertRequest(
+            "POST",
+            "/api/v1/password-recoveries",
+            mapOf("email" to EMAIL, "code" to "012345", "newPassword" to "NewPassword123!"),
+        )
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun recoveryErrorsNeverRenewOrAutomaticallyRepeatTheUpdate() = runBlocking {
+        storage.storedSession = existingSession()
+        enqueueJson(200, """{"userId":"$USER_ID","email":"$EMAIL","appRole":"cliente"}""")
+        repository.restoreSession().getOrThrow()
+        assertRequest("GET", "/api/v1/sessions/current", authorization = "Bearer access-token")
+        val errors =
+            listOf(
+                401 to "INVALID_RECOVERY_CODE",
+                403 to "PASSWORD_RECOVERY_NOT_ALLOWED",
+                409 to "SAME_PASSWORD",
+                422 to "WEAK_PASSWORD",
+                503 to "SERVICE_UNAVAILABLE",
+            )
+        for ((status, code) in errors) {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(status)
+                    .setHeader("Content-Type", "application/problem+json")
+                    .setHeader("Retry-After", "0")
+                    .setBody("""{"code":"$code"}"""),
+            )
+            val failure =
+                repository.recoverPassword(EMAIL, "012345", "NewPassword123!").exceptionOrNull()
+                    as AuthFailure
+            assertEquals(code, failure.code)
+            assertEquals(status, failure.status)
+            assertRequest(
+                "POST",
+                "/api/v1/password-recoveries",
+                mapOf("email" to EMAIL, "code" to "012345", "newPassword" to "NewPassword123!"),
+            )
+        }
+        server.enqueue(
+            MockResponse()
+                .setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST),
+        )
+        assertEquals(
+            "NETWORK_ERROR",
+            (repository.recoverPassword(EMAIL, "012345", "NewPassword123!").exceptionOrNull()
+                    as AuthFailure)
+                .code,
+        )
+        assertRequest(
+            "POST",
+            "/api/v1/password-recoveries",
+            mapOf("email" to EMAIL, "code" to "012345", "newPassword" to "NewPassword123!"),
+        )
+        assertEquals(
+            7,
+            server.requestCount,
+        ) // Identity plus six explicit updates; no renewal or replay.
+        assertEquals(existingSession(), storage.storedSession)
+        assertTrue(repository.sessionState.value is SessionState.Authenticated)
+    }
+
     private fun enqueueJson(status: Int, body: String) {
         server.enqueue(
             MockResponse()
@@ -388,6 +475,7 @@ class AuthApiContractTest {
 
     private class InMemorySecureStorage : SecureStorage {
         var storedSession: AuthSession? = null
+        var failClear = false
 
         override fun saveSession(session: AuthSession) {
             storedSession = session
@@ -396,6 +484,7 @@ class AuthApiContractTest {
         override fun getSession(): AuthSession? = storedSession
 
         override fun clear() {
+            if (failClear) throw java.io.IOException("Local cleanup failed")
             storedSession = null
         }
     }

@@ -57,8 +57,15 @@ class FakeAuthRepository : AuthRepository {
 
     override suspend fun requestEmailConfirmation(email: String) = confirmationRequestAction(email)
 
-    override suspend fun requestPasswordRecovery(email: String) = Result.success(Unit)
+    var recoveryRequestAction: suspend (String) -> Result<Unit> = { Result.success(Unit) }
+    var recoveryAction: suspend (String, String, String) -> Result<PasswordRecoveryResult> =
+        { _, _, _ ->
+            discardSession()
+            Result.success(PasswordRecoveryResult())
+        }
+
+    override suspend fun requestPasswordRecovery(email: String) = recoveryRequestAction(email)
 
     override suspend fun recoverPassword(email: String, code: String, newPassword: String) =
-        discardSession()
+        recoveryAction(email, code, newPassword)
 }

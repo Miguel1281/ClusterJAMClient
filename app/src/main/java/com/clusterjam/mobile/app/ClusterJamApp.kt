@@ -18,19 +18,21 @@ import com.clusterjam.mobile.app.navigation.AppNavHost
 import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
 import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
-import com.clusterjam.mobile.features.auth.presentation.AuthViewModel
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
+import com.clusterjam.mobile.features.auth.presentation.recovery.PasswordRecoveryStep
+import com.clusterjam.mobile.features.auth.presentation.recovery.PasswordRecoveryViewModel
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 import kotlinx.coroutines.delay
 
 @Composable
 fun ClusterJamApp(
     appViewModel: AppViewModel,
-    authViewModel: AuthViewModel,
+    recoveryViewModel: PasswordRecoveryViewModel,
     loginViewModel: LoginViewModel,
     registrationViewModel: RegistrationViewModel,
 ) {
     val state by appViewModel.uiState.collectAsStateWithLifecycle()
+    val recoveryState by recoveryViewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, appViewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -53,6 +55,21 @@ fun ClusterJamApp(
             color = MaterialTheme.colorScheme.background,
         ) {
             Column(Modifier.fillMaxSize()) {
+                if (recoveryState.step == PasswordRecoveryStep.COMPLETED) {
+                    val cleanupPending =
+                        recoveryState.cleanupFailure != null &&
+                            state.session is SessionState.AccessDenied
+                    Text(
+                        stringResource(
+                            if (cleanupPending) R.string.auth_password_updated_cleanup
+                            else R.string.auth_password_updated,
+                        ),
+                        modifier = Modifier.padding(16.dp),
+                    )
+                    TextButton(onClick = recoveryViewModel::dismissCompletion) {
+                        Text(stringResource(R.string.auth_dismiss_notice))
+                    }
+                }
                 state.notice?.let {
                     Text(it.resolve(LocalContext.current), modifier = Modifier.padding(16.dp))
                     TextButton(onClick = appViewModel::dismissNotice) {
@@ -82,7 +99,16 @@ fun ClusterJamApp(
                                 Text(AuthMessageMapper.failure(it).resolve(LocalContext.current))
                             }
                             Button(onClick = ::discardSession, enabled = !state.isBusy) {
-                                Text(stringResource(R.string.auth_use_another_account))
+                                Text(
+                                    stringResource(
+                                        if (
+                                            recoveryState.step == PasswordRecoveryStep.COMPLETED &&
+                                                recoveryState.cleanupFailure != null
+                                        )
+                                            R.string.auth_retry_local_cleanup
+                                        else R.string.auth_use_another_account,
+                                    ),
+                                )
                             }
                         }
                     }
@@ -135,7 +161,7 @@ fun ClusterJamApp(
                         key(identity?.userId) {
                             AppNavHost(
                                 identity = identity,
-                                authViewModel = authViewModel,
+                                recoveryViewModel = recoveryViewModel,
                                 loginViewModel = loginViewModel,
                                 registrationViewModel = registrationViewModel,
                                 isSessionBusy = state.isBusy,
