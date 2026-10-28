@@ -1,5 +1,21 @@
 <resources>
-    <string name="app_name">Cluster-JAM-Client</string>
+    <string name="app_name">Cluster JAM</string>
+    <string name="auth_show_password">Mostrar contraseña</string>
+    <string name="auth_hide_password">Ocultar contraseña</string>
+    <string name="auth_login_title">Iniciar sesión</string>
+    <string name="auth_login_subtitle">Tu próxima creación empieza aquí.</string>
+    <string name="auth_email_label">Correo de acceso</string>
+    <string name="auth_password_label">Contraseña</string>
+    <string name="auth_confirm_password_label">Confirmar contraseña</string>
+    <string name="auth_forgot_password">Olvidé mi contraseña</string>
+    <string name="auth_register_link">¿No tienes cuenta? Regístrate</string>
+    <string name="auth_login_link">¿Ya tienes una cuenta? Inicia sesión</string>
+    <string name="auth_register_title">Crear cuenta</string>
+    <string name="auth_register_subtitle">Crea tu cuenta de cliente en Cluster JAM.</string>
+    <string name="auth_register_submit">Crear cuenta</string>
+    <string name="auth_register_loading">Creando cuenta…</string>
+    <string name="auth_login_submit">Entrar</string>
+    <string name="auth_login_loading">Entrando…</string>
     <string name="auth_error_network">No se pudo conectar. Verifica tu conexión y vuelve a intentar.</string>
     <string name="auth_error_unexpected">No se pudo completar la operación. Vuelve a intentar.</string>
     <string name="auth_error_invalid_response">El servicio devolvió una respuesta inválida.</string>

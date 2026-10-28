@@ -2,7 +2,9 @@ package com.clusterjam.mobile
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.clusterjam.mobile.app.AppViewModel
 import com.clusterjam.mobile.app.ClusterJamApp
@@ -14,6 +16,18 @@ import com.clusterjam.mobile.features.auth.presentation.registration.Registratio
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle =
+                SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT,
+                ),
+            navigationBarStyle =
+                SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT,
+                ),
+        )
         val container = (application as ClusterJamApplication).container
         val factory = ViewModelFactories(container.authRepository)
         setContent {

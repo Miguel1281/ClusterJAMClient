@@ -1,28 +1,19 @@
 package com.clusterjam.mobile.features.auth.presentation.login
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.clusterjam.mobile.R
+import com.clusterjam.mobile.core.ui.components.PrimaryButton
+import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
 import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
+import com.clusterjam.mobile.features.auth.presentation.components.*
 
 @Composable
 fun LoginScreen(
@@ -35,184 +26,103 @@ fun LoginScreen(
     onEmailConfirmationClick: () -> Unit = {},
     notice: AuthMessage? = null,
 ) {
-    val context = LocalContext.current
-    val email = state.email
-    val password = state.password
-    val isLoading = state.isLoading
-    val emailError = state.emailError
-
-    Column(
-        modifier =
-            Modifier.fillMaxSize()
-                .imePadding()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Box(
-            modifier =
-                Modifier.size(88.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape,
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_tshirt),
-                contentDescription = "Logo Cluster JAM",
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Cluster JAM",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = "Camisetas Personalizadas",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.Start,
-        ) {
-            Text(
-                text = "Iniciar sesión",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "Usa tu correo de acceso.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp, top = 4.dp),
-            )
-
-            notice?.let { Text(it.resolve(context)) }
-            state.error?.let {
-                Text(it.resolve(context), color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(12.dp))
-            }
-            if (state.emailAwaitingConfirmation != null) {
-                TextButton(onClick = onEmailConfirmationClick, enabled = !isLoading) {
-                    Text(stringResource(R.string.auth_confirmation_title))
-                }
-            }
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                enabled = !isLoading,
-                singleLine = true,
-                isError = emailError != null,
-                supportingText = {
-                    emailError?.let { Text(stringResource(AuthMessageMapper.validation(it))) }
-                },
-                label = { Text("Correo de acceso") },
-                placeholder = { Text("cliente@ejemplo.com") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                enabled = !isLoading,
-                singleLine = true,
-                label = { Text("Contraseña") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            TextButton(
-                onClick = onForgotPasswordClick,
-                enabled = !isLoading,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(
-                    text = "Olvidé mi contraseña",
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+    AuthForm(
+        title = stringResource(R.string.auth_login_title),
+        subtitle = stringResource(R.string.auth_login_subtitle),
+        feedbackKey = state.error ?: notice,
+        action = {
+            PrimaryButton(
+                stringResource(
+                    if (state.isLoading) R.string.auth_login_loading
+                    else R.string.auth_login_submit,
                 ),
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "¿Es tu primera compra?",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Text(
-                    text = "Crea una cuenta y después completa tus datos de contacto.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-                OutlinedButton(
-                    onClick = onNavigateToRegister,
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text("Crear cuenta", fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = onLoginClick,
-            enabled = state.canSubmit,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text(
-                if (isLoading) "Entrando…" else "Entrar",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                onClick = onLoginClick,
+                enabled = state.canSubmit,
+                loading = state.isLoading,
             )
+        },
+        feedback = {
+            AuthFeedback(
+                error = state.error?.takeIf { it.fieldKind() == null },
+                notice = notice,
+                success = true,
+                action =
+                    if (state.emailAwaitingConfirmation != null) {
+                        {
+                            TextButton(
+                                onClick = onEmailConfirmationClick,
+                                enabled = !state.isLoading,
+                            ) {
+                                Text(stringResource(R.string.auth_confirmation_title))
+                            }
+                        }
+                    } else null,
+            )
+        },
+    ) {
+        AuthField(
+            state.email,
+            onEmailChange,
+            stringResource(R.string.auth_email_label),
+            enabled = !state.isLoading,
+            keyboardType = KeyboardType.Email,
+            error =
+                fieldMessage(state.error, AuthFieldKind.Email)
+                    ?: state.emailError?.let { stringResource(AuthMessageMapper.validation(it)) },
+        )
+        AuthField(
+            state.password,
+            onPasswordChange,
+            stringResource(R.string.auth_password_label),
+            enabled = !state.isLoading,
+            password = true,
+            error = fieldMessage(state.error, AuthFieldKind.Password),
+            onDone = { if (state.canSubmit) onLoginClick() },
+        )
+        TextButton(
+            onClick = onForgotPasswordClick,
+            enabled = !state.isLoading,
+            modifier = Modifier.align(Alignment.End),
+        ) {
+            Text(stringResource(R.string.auth_forgot_password))
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
+        TextButton(
+            onClick = onNavigateToRegister,
+            enabled = !state.isLoading,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            Text(stringResource(R.string.auth_register_link))
+        }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "Compacto", showBackground = true, widthDp = 320, heightDp = 568)
+@Preview(
+    name = "Texto grande",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+    fontScale = 1.6f,
+)
 @Composable
 fun LoginScreenPreview() {
-    MaterialTheme {
+    ClusterJAMClientTheme { LoginScreen({}, {}, {}) }
+}
+
+@Preview(name = "Error de conexión", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun LoginErrorPreview() {
+    ClusterJAMClientTheme {
         LoginScreen(
-            onNavigateToRegister = {},
-            onLoginClick = {},
-            onForgotPasswordClick = {},
+            {},
+            {},
+            {},
+            state =
+                LoginUiState(
+                    email = "cliente@ejemplo.com",
+                    error = AuthMessage(R.string.auth_error_network),
+                ),
         )
     }
 }

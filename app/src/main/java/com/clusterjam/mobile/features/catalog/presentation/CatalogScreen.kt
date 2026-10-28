@@ -1,146 +1,115 @@
 package com.clusterjam.mobile.features.catalog.presentation
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.clusterjam.mobile.R
+import com.clusterjam.mobile.core.ui.components.ScreenHeading
+import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
+import com.clusterjam.mobile.core.ui.theme.JamSpacing
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogScreen() {
-    Scaffold(
-        topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-            ) {
-                Text(
-                    text = "Catálogo",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Elige la prenda que vas a personalizar.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
+    val products =
+        listOf(
+            ProductItem("Manga corta", "$220 MXN"),
+            ProductItem("Manga larga", "$260 MXN"),
+            ProductItem("Sudadera", "$450 MXN"),
+            ProductItem("Manga corta clásica", "$220 MXN"),
+        )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyVerticalGrid(
+            columns =
+                GridCells.Adaptive(if (LocalDensity.current.fontScale >= 1.5f) 240.dp else 144.dp),
+            modifier = Modifier.widthIn(max = JamSpacing.ContentWidth).fillMaxSize(),
+            contentPadding = PaddingValues(JamSpacing.Page),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text(
-                text = "Buscar por nombre",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("Buscar playera o sudadera") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = { /* TODO */ },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    "Filtrar prendas",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ScreenHeading("Catálogo", "Elige la prenda que vas a personalizar.")
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val categories = listOf("Todos", "Manga corta", "Manga larga", "Sudadera")
-                categories.forEach { category ->
-                    OutlinedButton(
-                        onClick = { /* TODO */ },
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Catalog integration is pending. Do not imply that search or filters work.
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        enabled = false,
+                        singleLine = true,
+                        label = { Text("Buscar prendas") },
+                        placeholder = { Text("Próximamente") },
+                        leadingIcon = {
+                            Icon(painterResource(R.drawable.ic_search), contentDescription = null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        colors =
+                            OutlinedTextFieldDefaults.colors(
+                                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledPlaceholderColor =
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledLeadingIconColor =
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                    )
+                    Text(
+                        "Búsqueda y filtros disponibles próximamente.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(
-                            text = category,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 12.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        listOf("Todos", "Manga corta", "Manga larga", "Sudadera").forEach { category
+                            ->
+                            FilterChip(
+                                selected = category == "Todos",
+                                onClick = {},
+                                enabled = false,
+                                label = { Text(category) },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                colors =
+                                    FilterChipDefaults.filterChipColors(
+                                        disabledLabelColor =
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledSelectedContainerColor =
+                                            MaterialTheme.colorScheme.primaryContainer,
+                                    ),
+                            )
+                        }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val products = listOf(
-                ProductItem("Manga corta", "$220 MXN"),
-                ProductItem("Manga larga", "$260 MXN"),
-                ProductItem("Sudadera", "$450 MXN"),
-                ProductItem("Manga corta clásica", "$220 MXN")
-            )
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(products) { product ->
-                    ProductCard(product)
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Prendas", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Vista previa",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-
-            OutlinedButton(
-                onClick = { /* TODO */ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    "Cargar más prendas",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            items(products, key = { it.name }) { ProductCard(it) }
         }
     }
 }
@@ -149,52 +118,55 @@ data class ProductItem(val name: String, val price: String)
 
 @Composable
 fun ProductCard(product: ProductItem) {
-    Card(
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .background(Color(0xFFF0F0F0), RoundedCornerShape(4.dp)),
-                contentAlignment = Alignment.Center
+        Column {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.05f),
             ) {
-                Text(
-                    text = "Imagen / miniatura",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(R.drawable.ic_tshirt),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(64.dp),
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = product.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = "Desde ${product.price}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    product.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Desde",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(product.price, style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "Tablet", showBackground = true, widthDp = 800, heightDp = 1000)
+@Preview(
+    name = "Texto grande",
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    fontScale = 2f,
+)
 @Composable
 fun CatalogScreenPreview() {
-    MaterialTheme {
-        CatalogScreen()
-    }
+    ClusterJAMClientTheme { CatalogScreen() }
 }
