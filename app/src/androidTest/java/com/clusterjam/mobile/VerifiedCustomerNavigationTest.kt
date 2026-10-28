@@ -72,7 +72,7 @@ class VerifiedCustomerNavigationTest {
         waitFor { repository.sessionState.value == SessionState.Unauthenticated }
         compose.onNodeWithText("Correo de acceso").performTextInput(EMAIL)
         compose.onNodeWithText("Contraseña", substring = false).performTextInput("Password123!")
-        compose.onNodeWithText("Entrar", substring = false).performScrollTo().performClick()
+        compose.onNodeWithText("Entrar", substring = false).assertIsDisplayed().performClick()
         waitFor {
             repository.sessionState.value is SessionState.AccessDenied && !app.uiState.value.isBusy
         }

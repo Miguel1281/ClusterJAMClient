@@ -1,31 +1,20 @@
 package com.clusterjam.mobile.features.auth.presentation.registration
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.clusterjam.mobile.R
-import com.clusterjam.mobile.features.auth.domain.validation.AuthValidationError
+import com.clusterjam.mobile.core.ui.components.PrimaryButton
+import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidator
 import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
-import kotlinx.coroutines.delay
+import com.clusterjam.mobile.features.auth.presentation.components.*
 
 @Composable
 fun RegisterScreen(
@@ -37,247 +26,101 @@ fun RegisterScreen(
     onEmailChange: (String) -> Unit = {},
     retryAtMillis: Long = 0,
 ) {
+    // Secrets intentionally remain in memory only, as in the original form.
     var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-
-    var passwordError by remember { mutableStateOf<AuthValidationError?>(null) }
-    val passwordMismatchMessage = stringResource(R.string.auth_password_mismatch)
-    var confirmPasswordError by remember { mutableStateOf<String?>(null) }
-
-    fun validatePassword(pass: String): Boolean {
-        passwordError = AuthValidator.passwordError(pass)
-        return passwordError == null
-    }
+    var confirmation by remember { mutableStateOf("") }
     val emailError = if (email.isBlank()) null else AuthValidator.emailError(email.trim())
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(retryAtMillis) {
-        now = System.currentTimeMillis()
-        while (now < retryAtMillis) {
-            delay(1000)
-            now = System.currentTimeMillis()
-        }
-    }
-    val remaining = (retryAtMillis - now).coerceAtLeast(0)
+    val passwordError = if (password.isEmpty()) null else AuthValidator.passwordError(password)
+    val mismatch = confirmation.isNotEmpty() && confirmation != password
+    val remaining = rememberRetrySeconds(retryAtMillis)
+    val canSubmit =
+        !isLoading &&
+            remaining == 0L &&
+            AuthValidator.emailError(email.trim()) == null &&
+            AuthValidator.passwordError(password) == null &&
+            password == confirmation
+    val submit = { if (canSubmit) onRegisterClick(email.trim(), password) }
 
-    Column(
-        modifier =
-            Modifier.fillMaxSize()
-                .imePadding()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(modifier = Modifier.height(48.dp))
-        error?.let {
-            Text(it.resolve(LocalContext.current), color = MaterialTheme.colorScheme.error)
-        }
-        if (remaining > 0) {
-            val seconds = remaining / 1000 + if (remaining % 1000 > 0) 1 else 0
-            Text(stringResource(R.string.auth_confirmation_retry_after, seconds))
-        }
-
-        Box(
-            modifier =
-                Modifier.size(88.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape,
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_tshirt),
-                contentDescription = "Logo Cluster JAM",
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Cluster JAM",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = "Camisetas Personalizadas",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.Start,
-        ) {
-            Text(
-                text = "Crear cuenta",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "Regístrate como cliente.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp, top = 4.dp),
-            )
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                enabled = !isLoading,
-                singleLine = true,
-                isError = emailError != null,
-                supportingText = {
-                    emailError?.let { Text(stringResource(AuthMessageMapper.validation(it))) }
-                },
-                label = { Text("Correo de acceso") },
-                placeholder = { Text("cliente@ejemplo.com") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = {
-                    password = it
-                    validatePassword(it)
-                    confirmPasswordError =
-                        if (confirmPassword.isNotEmpty() && it != confirmPassword)
-                            passwordMismatchMessage
-                        else null
-                },
-                label = { Text("Contraseña") },
-                enabled = !isLoading,
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                isError = passwordError != null,
-                supportingText = {
-                    passwordError?.let { error ->
-                        Text(
-                            text = stringResource(AuthMessageMapper.validation(error)),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                },
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = {
-                    confirmPassword = it
-                    if (it != password) {
-                        confirmPasswordError = passwordMismatchMessage
-                    } else {
-                        confirmPasswordError = null
-                    }
-                },
-                label = { Text("Confirmar contraseña") },
-                enabled = !isLoading,
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                isError = confirmPasswordError != null,
-                supportingText = {
-                    if (confirmPasswordError != null) {
-                        Text(
-                            text = confirmPasswordError.orEmpty(),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                },
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+    AuthForm(
+        title = stringResource(R.string.auth_register_title),
+        subtitle = stringResource(R.string.auth_register_subtitle),
+        feedbackKey = error,
+        action = {
+            PrimaryButton(
+                stringResource(
+                    if (isLoading) R.string.auth_register_loading
+                    else R.string.auth_register_submit,
                 ),
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "Revisa tus datos",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Text(
-                    text = "Si el correo ya está registrado, inicia sesión o recupera tu acceso.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-                OutlinedButton(
-                    onClick = onNavigateToLogin,
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text("Ya tengo una cuenta", fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            enabled =
-                !isLoading &&
-                    remaining == 0L &&
-                    AuthValidator.emailError(email.trim()) == null &&
-                    AuthValidator.passwordError(password) == null &&
-                    password == confirmPassword,
-            onClick = {
-                val isValid = validatePassword(password)
-                if (
-                    isValid &&
-                        password == confirmPassword &&
-                        AuthValidator.emailError(email.trim()) == null
-                ) {
-                    onRegisterClick(email.trim(), password)
-                } else if (password != confirmPassword) {
-                    confirmPasswordError = passwordMismatchMessage
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text(
-                if (isLoading) "Creando cuenta…" else "Crear mi cuenta",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                onClick = submit,
+                enabled = canSubmit,
+                loading = isLoading,
             )
+        },
+        feedback = {
+            AuthFeedback(
+                error = error?.takeIf { it.fieldKind() == null },
+                remainingSeconds = remaining,
+            )
+        },
+    ) {
+        AuthField(
+            email,
+            onEmailChange,
+            stringResource(R.string.auth_email_label),
+            enabled = !isLoading,
+            keyboardType = KeyboardType.Email,
+            error =
+                fieldMessage(error, AuthFieldKind.Email)
+                    ?: emailError?.let { stringResource(AuthMessageMapper.validation(it)) },
+        )
+        AuthField(
+            password,
+            { password = it },
+            stringResource(R.string.auth_password_label),
+            enabled = !isLoading,
+            password = true,
+            hint = stringResource(R.string.auth_password_hint),
+            error =
+                fieldMessage(error, AuthFieldKind.Password)
+                    ?: passwordError?.let { stringResource(AuthMessageMapper.validation(it)) },
+        )
+        AuthField(
+            confirmation,
+            { confirmation = it },
+            stringResource(R.string.auth_confirm_password_label),
+            enabled = !isLoading,
+            password = true,
+            error = if (mismatch) stringResource(R.string.auth_password_mismatch) else null,
+            onDone = submit,
+        )
+        TextButton(
+            onClick = onNavigateToLogin,
+            enabled = !isLoading,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            Text(stringResource(R.string.auth_login_link))
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "Compacto", showBackground = true, widthDp = 320, heightDp = 568)
+@Preview(
+    name = "Texto grande",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+    fontScale = 2f,
+)
 @Composable
 fun RegisterScreenPreview() {
-    MaterialTheme {
-        RegisterScreen(
-            onNavigateToLogin = {},
-            onRegisterClick = { _, _ -> },
-        )
+    ClusterJAMClientTheme { RegisterScreen({}, { _, _ -> }) }
+}
+
+@Preview(name = "Enviando", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun RegisterLoadingPreview() {
+    ClusterJAMClientTheme {
+        RegisterScreen({}, { _, _ -> }, isLoading = true, email = "cliente@ejemplo.com")
     }
 }

@@ -5,6 +5,42 @@ Retrofit. `AppViewModel` coordina la sesión global, `LoginViewModel` conserva e
 acceso, `RegistrationViewModel` comparte registro y confirmación del correo, y
 `PasswordRecoveryViewModel` coordina la recuperación de contraseña.
 
+## Interfaz Android
+
+El tema de Cluster JAM es claro y fijo: azul tinta `#344C74`, fondo `#F7F8FC` y superficies
+blancas. No utiliza Dynamic Color ni cambia con el modo oscuro. Los colores, la tipografía
+Roboto del sistema, las formas y los espacios están centralizados en `core/ui/theme`.
+La jerarquía, la simplicidad y el feedback siguen los principios de `apple-design`, adaptados
+a los controles y patrones de Android. Las interacciones usan el feedback y las transiciones
+nativas de Material/Compose, sin movimiento decorativo ni temporizadores de animación propios.
+
+Los formularios comparten `AuthForm`, campos con visibilidad de contraseña, validación inline
+y una acción inferior independiente del scroll. Los errores de conexión y avisos aparecen
+encima de esa acción, con anuncios para lectores de pantalla. Los mensajes largos permiten
+desplazamiento propio al ampliar el texto; un mensaje nuevo vuelve al inicio. El contenedor
+de la aplicación consume las barras del sistema y el recorte de pantalla; cada formulario
+consume el teclado una sola vez. Se conserva `adjustResize`.
+
+Catálogo y perfil usan el mismo sistema visual. Los productos siguen siendo una vista previa;
+la búsqueda y los filtros están deshabilitados e identificados como próximos. La barra inferior
+ofrece las dos rutas implementadas: Catálogo y Perfil. El perfil muestra el correo real y las
+acciones existentes de identidad, contraseña y cierre de sesión. No presenta controles de
+edición, guardado, direcciones, carrito o pedidos que simulen una integración pendiente.
+
+`ClientPresentationTest` comprueba formularios de 320 y 390 dp, texto al 200 %, teclado real,
+recorrido de foco, errores visibles, conservación del formulario de registro, carga, éxito,
+OTP con cero inicial y controles pendientes. Las previews incluyen tamaños compactos,
+texto grande y catálogo en tablet. Para ejecutar también las pruebas de interfaz existentes:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest --no-configuration-cache
+```
+
+Las pruebas generan capturas en el directorio externo `files/redesign` de la aplicación del
+emulador. El runner de Gradle puede borrar esos archivos al desinstalar los APK de prueba;
+para conservarlos, ejecutar los APK con `adb shell am instrument` y copiar el directorio antes
+de desinstalar. Las capturas de revisión locales se guardan en `app/build/reports/ui-redesign`.
+
 ## Organización del proyecto
 
 Android, el cliente Windows y el backend se mantienen en repositorios independientes.

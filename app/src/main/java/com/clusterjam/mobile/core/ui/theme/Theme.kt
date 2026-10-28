@@ -1,56 +1,56 @@
 package com.clusterjam.mobile.core.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+private val ClusterJamColorScheme =
+    lightColorScheme(
+        primary = JamColors.Ink,
+        onPrimary = JamColors.Surface,
+        primaryContainer = JamColors.Highlight,
+        onPrimaryContainer = JamColors.Ink,
+        secondary = JamColors.Blue,
+        onSecondary = JamColors.Surface,
+        secondaryContainer = JamColors.Highlight,
+        onSecondaryContainer = JamColors.Ink,
+        tertiary = JamColors.Blue,
+        onTertiary = JamColors.Surface,
+        tertiaryContainer = JamColors.Highlight,
+        onTertiaryContainer = JamColors.Ink,
+        background = JamColors.Background,
+        onBackground = JamColors.Text,
+        surface = JamColors.Surface,
+        onSurface = JamColors.Text,
+        surfaceVariant = JamColors.Highlight,
+        onSurfaceVariant = JamColors.Muted,
+        surfaceTint = JamColors.Ink,
+        surfaceBright = JamColors.Surface,
+        surfaceDim = JamColors.Background,
+        surfaceContainerLowest = JamColors.Surface,
+        surfaceContainerLow = JamColors.Background,
+        surfaceContainer = JamColors.Background,
+        surfaceContainerHigh = JamColors.Highlight,
+        surfaceContainerHighest = JamColors.Highlight,
+        outline = JamColors.Muted,
+        outlineVariant = JamColors.Border,
+        error = JamColors.Error,
+        onError = JamColors.Surface,
+        errorContainer = JamColors.ErrorBackground,
+        onErrorContainer = JamColors.Error,
+        inverseSurface = JamColors.Text,
+        inverseOnSurface = JamColors.Surface,
+        inversePrimary = JamColors.Highlight,
+        scrim = JamColors.Text,
+    )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
-
+/** Fixed identity, independent of wallpaper and system night mode. */
 @Composable
-fun ClusterJAMClientTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+fun ClusterJAMClientTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = ClusterJamColorScheme,
         typography = Typography,
-        content = content
+        shapes = JamShapes,
+        content = content,
     )
 }

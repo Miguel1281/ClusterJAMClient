@@ -1,19 +1,19 @@
 package com.clusterjam.mobile.features.auth.presentation.registration
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.clusterjam.mobile.R
+import com.clusterjam.mobile.core.ui.components.PrimaryButton
+import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
 import com.clusterjam.mobile.features.auth.domain.validation.AuthValidator
-import kotlinx.coroutines.delay
+import com.clusterjam.mobile.features.auth.presentation.AuthMessageMapper
+import com.clusterjam.mobile.features.auth.presentation.components.*
 
 @Composable
 fun EmailConfirmationScreen(
@@ -24,74 +24,92 @@ fun EmailConfirmationScreen(
     onResend: () -> Unit,
     onBackToLogin: () -> Unit,
 ) {
-    val context = LocalContext.current
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    // This effect only updates a display clock; it never submits or resends an OTP.
-    LaunchedEffect(state.retryAtMillis) {
-        now = System.currentTimeMillis()
-        while (now < state.retryAtMillis) {
-            delay(1000)
-            now = System.currentTimeMillis()
-        }
-    }
-    val remaining = (state.retryAtMillis - now).coerceAtLeast(0)
-    val seconds = remaining / 1000 + if (remaining % 1000 > 0) 1 else 0
+    val remaining = rememberRetrySeconds(state.retryAtMillis)
     val canSend =
         !state.isBusy && remaining == 0L && AuthValidator.emailError(state.email.trim()) == null
-    Column(
-        modifier =
-            Modifier.fillMaxSize()
-                .imePadding()
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            stringResource(R.string.auth_confirmation_title),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Text(stringResource(R.string.auth_confirmation_instructions))
-        state.notice?.let { Text(it.resolve(context)) }
-        state.error?.let { Text(it.resolve(context), color = MaterialTheme.colorScheme.error) }
-        OutlinedTextField(
-            value = state.email,
-            onValueChange = onEmailChange,
-            label = { Text(stringResource(R.string.auth_confirmation_email)) },
-            supportingText = { Text(stringResource(R.string.auth_confirmation_change_email)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            enabled = !state.isBusy,
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = state.code,
-            onValueChange = onCodeChange,
-            label = { Text(stringResource(R.string.auth_confirmation_code)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            enabled = !state.isBusy,
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (remaining > 0) Text(stringResource(R.string.auth_confirmation_retry_after, seconds))
-        Button(
-            onClick = onConfirm,
-            enabled = canSend && AuthValidator.codeError(state.code) == null,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
+    val canConfirm = canSend && AuthValidator.codeError(state.code) == null
+    val emailError =
+        if (state.email.isBlank()) null else AuthValidator.emailError(state.email.trim())
+    val codeError = if (state.code.isEmpty()) null else AuthValidator.codeError(state.code)
+    AuthForm(
+        title = stringResource(R.string.auth_confirmation_title),
+        subtitle = stringResource(R.string.auth_confirmation_instructions),
+        feedbackKey = state.error ?: state.notice,
+        action = {
+            PrimaryButton(
                 stringResource(
                     if (state.operation == RegistrationOperation.CONFIRMING)
                         R.string.auth_confirmation_confirming
                     else R.string.auth_confirmation_submit,
                 ),
+                onClick = onConfirm,
+                enabled = canConfirm,
+                loading = state.operation == RegistrationOperation.CONFIRMING,
             )
-        }
+        },
+        feedback = {
+            AuthFeedback(
+                error = state.error?.takeIf { it.fieldKind() == null },
+                notice = state.notice,
+                remainingSeconds = remaining,
+            )
+        },
+    ) {
+        AuthField(
+            state.email,
+            onEmailChange,
+            stringResource(R.string.auth_confirmation_email),
+            enabled = !state.isBusy,
+            keyboardType = KeyboardType.Email,
+            hint = stringResource(R.string.auth_confirmation_change_email),
+            error =
+                fieldMessage(state.error, AuthFieldKind.Email)
+                    ?: emailError?.let { stringResource(AuthMessageMapper.validation(it)) },
+        )
+        AuthField(
+            state.code,
+            onCodeChange,
+            stringResource(R.string.auth_confirmation_code),
+            enabled = !state.isBusy,
+            keyboardType = KeyboardType.NumberPassword,
+            error =
+                fieldMessage(state.error, AuthFieldKind.Code)
+                    ?: codeError?.let { stringResource(AuthMessageMapper.validation(it)) },
+            onDone = { if (canConfirm) onConfirm() },
+        )
         TextButton(onClick = onResend, enabled = canSend) {
+            if (state.operation == RegistrationOperation.RESENDING) {
+                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+            }
             Text(stringResource(R.string.auth_confirmation_resend))
         }
-        if (state.isBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
         TextButton(onClick = onBackToLogin, enabled = !state.isBusy) {
             Text(stringResource(R.string.auth_confirmation_back_login))
         }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(
+    name = "Texto grande",
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 568,
+    fontScale = 1.6f,
+)
+@Composable
+private fun ConfirmationPreview() {
+    ClusterJAMClientTheme {
+        EmailConfirmationScreen(
+            RegistrationUiState(
+                email = "cliente@ejemplo.com",
+                step = RegistrationStep.WAITING_CODE,
+            ),
+            {},
+            {},
+            {},
+            {},
+            {},
+        )
     }
 }
