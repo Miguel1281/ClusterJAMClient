@@ -24,6 +24,7 @@ import com.clusterjam.mobile.features.auth.domain.model.AuthFailure
 import com.clusterjam.mobile.features.auth.domain.model.AuthIdentity
 import com.clusterjam.mobile.features.auth.domain.model.AuthSession
 import com.clusterjam.mobile.features.auth.domain.model.EmailConfirmationRequestResult
+import com.clusterjam.mobile.features.auth.domain.model.PasswordRecoveryResult
 import com.clusterjam.mobile.features.auth.domain.model.RegistrationResult
 import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.model.StorageAction
@@ -225,6 +226,7 @@ class AuthRepositoryImpl(
         validateEmail(normalized)
         val response = apiService.requestPasswordRecovery(PasswordRecoveryRequestDto(normalized))
         if (!response.isSuccessful) throw HttpException(response)
+        if (response.code() != 200) throw AuthFailure("INVALID_RESPONSE")
         Unit
     }
 
@@ -232,7 +234,7 @@ class AuthRepositoryImpl(
         email: String,
         code: String,
         newPassword: String,
-    ): Result<Unit> {
+    ): Result<PasswordRecoveryResult> {
         val expected = generation.get()
         return capture {
             sessionMutex.withLock {
@@ -241,10 +243,19 @@ class AuthRepositoryImpl(
                 validateEmail(normalized)
                 AuthValidator.codeError(code)?.let { invalid(it) }
                 AuthValidator.passwordError(newPassword)?.let { invalid(it) }
-                apiService
-                    .recoverPassword(RecoverPasswordRequestDto(normalized, code, newPassword))
-                    .requireSuccess()
-                endSessionLocked(expected)
+                val response =
+                    apiService.recoverPassword(
+                        RecoverPasswordRequestDto(normalized, code, newPassword),
+                    )
+                if (!response.isSuccessful) throw HttpException(response)
+                if (response.code() != 204) throw AuthFailure("INVALID_RESPONSE")
+                try {
+                    endSessionLocked(expected)
+                    PasswordRecoveryResult()
+                } catch (error: Exception) {
+                    // 204 is final, even if local cleanup fails or a newer session superseded it.
+                    PasswordRecoveryResult(cleanupFailure = failure(error))
+                }
             }
         }
     }

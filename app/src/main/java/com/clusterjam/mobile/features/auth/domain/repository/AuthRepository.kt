@@ -3,6 +3,7 @@ package com.clusterjam.mobile.features.auth.domain.repository
 import com.clusterjam.mobile.features.auth.domain.model.AuthCredentials
 import com.clusterjam.mobile.features.auth.domain.model.AuthSession
 import com.clusterjam.mobile.features.auth.domain.model.EmailConfirmationRequestResult
+import com.clusterjam.mobile.features.auth.domain.model.PasswordRecoveryResult
 import com.clusterjam.mobile.features.auth.domain.model.RegistrationResult
 import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.model.VerifiedIdentity
@@ -34,5 +35,10 @@ interface AuthRepository {
 
     suspend fun requestPasswordRecovery(email: String): Result<Unit>
 
-    suspend fun recoverPassword(email: String, code: String, newPassword: String): Result<Unit>
+    // Success confirms the remote change. Check cleanupFailure and sessionState separately.
+    suspend fun recoverPassword(
+        email: String,
+        code: String,
+        newPassword: String,
+    ): Result<PasswordRecoveryResult>
 }
