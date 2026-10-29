@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="false">
+        <domain>192.168.1.77</domain>
+        <trust-anchors>
+            <certificates src="@raw/cluster_jam_ca" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
