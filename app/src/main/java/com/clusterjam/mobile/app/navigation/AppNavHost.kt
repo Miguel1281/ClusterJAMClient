@@ -388,7 +388,6 @@ fun AppNavHost(
                                 recoveryViewModel.begin(identity.email)
                                 navController.navigate(Routes.RECOVERY)
                             },
-                            onRefreshIdentityClick = onRefreshIdentity,
                             state = profileState,
                             onRefreshProfileClick = { profileViewModel?.refresh() },
                             onEditProfileClick = {
