@@ -13,12 +13,22 @@ import com.clusterjam.mobile.features.auth.presentation.registration.Registratio
 import com.clusterjam.mobile.features.profile.domain.repository.ProfileRepository
 import com.clusterjam.mobile.features.profile.presentation.ProfileFormViewModel
 import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressViewModel
 
 class ViewModelFactories(
     private val repository: AuthRepository,
     private val profileRepository: ProfileRepository? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+        if (modelClass == AddressViewModel::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            return AddressViewModel(
+                requireNotNull(profileRepository),
+                repository,
+                extras.createSavedStateHandle(),
+            )
+                as T
+        }
         if (modelClass == ProfileFormViewModel::class.java) {
             @Suppress("UNCHECKED_CAST")
             return ProfileFormViewModel(
@@ -42,6 +52,12 @@ class ViewModelFactories(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val instance =
             when (modelClass) {
+                AddressViewModel::class.java ->
+                    AddressViewModel(
+                        requireNotNull(profileRepository),
+                        repository,
+                        SavedStateHandle(),
+                    )
                 AppViewModel::class.java -> AppViewModel(repository)
                 ProfileViewModel::class.java ->
                     ProfileViewModel(requireNotNull(profileRepository), repository)

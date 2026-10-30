@@ -28,11 +28,19 @@ internal fun isProtectedApiRequest(request: Request, baseUrl: String): Boolean {
 internal fun isProtectedProfileRequest(request: Request, baseUrl: String): Boolean {
     val base = HttpUrl.get(baseUrl)
     val url = request.url()
-    return url.scheme() == base.scheme() &&
-        url.host() == base.host() &&
-        url.port() == base.port() &&
-        url.pathSegments() ==
-            base.pathSegments().filter(String::isNotEmpty) +
-                listOf("api", "v1", "profiles", "me") &&
-        request.method() in setOf("GET", "PATCH")
+    if (url.scheme() != base.scheme() || url.host() != base.host() || url.port() != base.port())
+        return false
+    val prefix =
+        base.pathSegments().filter(String::isNotEmpty) + listOf("api", "v1", "profiles", "me")
+    if (url.pathSegments().take(prefix.size) != prefix) return false
+    val suffix = url.pathSegments().drop(prefix.size)
+    return when {
+        suffix.isEmpty() -> request.method() in setOf("GET", "PATCH")
+        suffix == listOf("addresses") -> request.method() in setOf("GET", "POST")
+        suffix.size == 2 &&
+            suffix[0] == "addresses" &&
+            Regex("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$")
+                .matches(suffix[1]) -> request.method() in setOf("GET", "PATCH", "DELETE")
+        else -> false
+    }
 }

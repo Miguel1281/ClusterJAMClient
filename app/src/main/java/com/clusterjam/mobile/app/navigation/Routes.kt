@@ -10,4 +10,6 @@ object Routes {
     const val PROFILE_GATE = "profile-gate"
     const val ONBOARDING = "profile-onboarding"
     const val EDIT_PROFILE = "profile-edit"
+    const val ADDRESSES = "profile-addresses"
+    const val ADDRESS_FORM = "profile-address-form"
 }
