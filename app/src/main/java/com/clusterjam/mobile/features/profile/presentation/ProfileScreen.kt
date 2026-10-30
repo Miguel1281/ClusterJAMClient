@@ -31,6 +31,7 @@ fun ProfileScreen(
     onRefreshIdentityClick: () -> Unit = {},
     state: ProfileUiState = ProfileUiState(),
     onRefreshProfileClick: () -> Unit = {},
+    onEditProfileClick: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -42,6 +43,24 @@ fun ProfileScreen(
         ) {
             ScreenHeading("Mi perfil", "Tu cuenta, en un solo lugar.")
             ProfileContact(state, onRefreshProfileClick, enabled = !isLoading)
+            if (state.status == ProfileLoadStatus.READY && onEditProfileClick != null) {
+                OutlinedButton(
+                    onClick = onEditProfileClick,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (
+                                state.snapshot?.profile?.onboardingStatus ==
+                                    OnboardingStatus.COMPLETED
+                            )
+                                R.string.profile_edit_title
+                            else R.string.profile_onboarding_title,
+                        ),
+                    )
+                }
+            }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "Cuenta",

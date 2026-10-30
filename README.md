@@ -25,8 +25,9 @@ Catálogo y perfil usan el mismo sistema visual. Los productos siguen siendo una
 la búsqueda y los filtros están deshabilitados e identificados como próximos. La barra inferior
 ofrece las dos rutas implementadas: Catálogo y Perfil. El perfil consulta nombre, teléfono,
 correo de contacto y onboarding reales de ProfileService, separados del correo de acceso y las
-acciones existentes de identidad, contraseña y cierre de sesión. No presenta controles de
-edición, guardado, direcciones, carrito o pedidos que simulen una integración pendiente.
+acciones existentes de identidad, contraseña y cierre de sesión. Permite completar el
+onboarding y editar el contacto mediante el backend. Direcciones se incorpora en el
+siguiente PR; no se presentan controles de carrito o pedidos sin integración.
 
 `ClientPresentationTest` comprueba formularios de 320 y 390 dp, texto al 200 %, teclado real,
 recorrido de foco, errores visibles, conservación del formulario de registro, carga, éxito,
@@ -111,9 +112,10 @@ de URL no despliega ni comprueba la disponibilidad del backend.
 
 ## Integración incremental de Profile Service
 
-El PR #13 integró la comunicación real de consulta/actualización, sus DTO, modelos
-y repositorio siguiendo los patrones de Auth. La segunda rama conecta la pestaña
-Perfil con la consulta real; onboarding/edición y direcciones siguen en sus propios PR.
+Los PR #13 y #14 integraron la comunicación real de consulta/actualización y la
+pantalla Perfil siguiendo los patrones de Auth. La tercera rama añade los formularios
+de onboarding/edición y la navegación según el estado real. Direcciones queda en
+la cuarta rama.
 El [análisis y plan](docs/profile/implementation-plan.md) describe los contratos,
 la navegación prevista y las cuatro ramas de implementación.
 
@@ -151,22 +153,50 @@ verifica la compilación con `:app:assembleDebug`. En GitHub, los PR de ramas
 pruebas; el workflow mantiene la verificación anterior para otros cambios.
 Una compilación exitosa no demuestra el funcionamiento contra el backend.
 
-La pestaña Perfil llama a `GET /api/v1/profiles/me` mediante su repositorio cuando
-está visible y la identidad ya fue verificada. Muestra carga, datos reales,
+El flujo autenticado llama a `GET /api/v1/profiles/me` mediante su repositorio al
+validar la identidad. La consulta compartida permite decidir la navegación y mostrar datos
+en la pestaña Perfil. Muestra carga, datos reales,
 PENDING/COMPLETED y errores locales de red/servicio/sesión. Un 404
 `PROFILE_NOT_READY` muestra preparación del perfil y permite como máximo tres
 reintentos automáticos con esperas de 1, 2 y 4 segundos. Después ofrece reintento
 manual. Otros errores no generan sondeo automático.
 
-Salir de la pantalla, enviar la aplicación al fondo o perder la identidad detiene
-la espera/consulta y limpia el estado de contacto en memoria. Al volver se consulta
+Salir del flujo autenticado, enviar la aplicación al fondo o perder la identidad detiene
+la espera/consulta y limpia el estado de perfil compartido en memoria. Al volver se consulta
 de nuevo. Se descartan respuestas de otra identidad y no se guarda una bandera
 local de onboarding. El correo de acceso y las acciones Auth existentes siguen
 separados: un fallo de Profile no deshabilita el cierre de sesión.
 
-Esta etapa aún no cambia la entrada al catálogo según onboarding ni incorpora
-formularios o direcciones. Véase la [entrega 2](docs/profile/delivery-02.md) para
-los archivos y resultados de compilación de la pantalla.
+Después de login/confirmación o restauración de sesión, una ruta del mismo NavHost
+consulta el perfil: PROFILE_NOT_READY espera de forma acotada; PENDING abre
+**Completa tu perfil** y COMPLETED continúa al catálogo. El catálogo permanece
+deshabilitado mientras el estado confirmado sea incompleto o no esté disponible.
+Desde onboarding se puede volver al perfil para gestionar la cuenta/cerrar sesión.
+Un perfil completo ofrece **Editar datos de contacto**. Las rutas restauradas
+tampoco muestran catálogo antes de una consulta actual.
+
+Onboarding y edición comparten AuthForm/AuthField, validación local y un
+ProfileFormViewModel con StateFlow/SavedStateHandle, siguiendo RegistrationViewModel.
+El formulario precarga únicamente los valores de Profile y envía nombre, teléfono y
+correo de contacto con If-Match. Muestra el resultado real y **Continuar** después
+del éxito; solo COMPLETED permite continuar al catálogo. Atrás confirma antes de
+descartar un borrador; no permite salir durante una operación.
+
+El borrador conserva únicamente campos de contacto, propietario y etapa en el estado
+guardado de Android, para restaurar tras recreación. No conserva tokens, contraseñas,
+revisiones HTTP ni una bandera de onboarding completado. Al cerrar sesión, cambiar
+de propietario o descartar el formulario se borra. La consulta compartida del perfil
+sigue solo en memoria, sin base local ni preferencias de contacto.
+
+Ante 412/428, sesión inválida o un guardado incierto, primero se consulta la versión
+actual. El borrador se conserva; si cambió la revisión o se restauró sin ella, se
+muestran los valores actuales y se exige decidir entre conservar el borrador o
+reemplazarlo. Después hace falta pulsar Guardar; no hay reenvío automático de PATCH.
+La espera Retry-After, si está presente, deshabilita el envío durante ese plazo.
+
+Véanse la [entrega 2](docs/profile/delivery-02.md) y la
+[entrega 3](docs/profile/delivery-03.md) para los archivos/resultados. Direcciones
+sigue pendiente de su propia rama.
 
 ## Contrato HTTP integrado
 
@@ -184,7 +214,8 @@ los archivos y resultados de compilación de la pantalla.
 | Liveness | `GET /health/live` | `200`, `status: ok` |
 | Readiness | `GET /health/ready` | `200`, `status: ok`, o `503` |
 
-Solo la consulta y el cierre de sesión actual envían `Authorization: Bearer <accessToken>`.
+Entre las operaciones Auth, solo la consulta y el cierre de sesión actual envían
+`Authorization: Bearer <accessToken>`; las operaciones Profile también usan la sesión protegida.
 `expiresIn` se recibe en segundos y se convierte a una expiración absoluta en milisegundos.
 Los códigos de confirmación y recuperación se envían como cadenas de seis dígitos para conservar ceros iniciales.
 

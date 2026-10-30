@@ -13,6 +13,7 @@ fun MainScaffold(
     currentRoute: String?,
     onNavigateToCatalog: () -> Unit,
     onNavigateToProfile: () -> Unit,
+    catalogEnabled: Boolean = true,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
@@ -37,6 +38,7 @@ fun MainScaffold(
                             label = { Text(stringResource(R.string.nav_catalog)) },
                             selected = currentRoute == Routes.CATALOG,
                             onClick = onNavigateToCatalog,
+                            enabled = catalogEnabled,
                             colors = navigationColors(),
                         )
                         NavigationBarItem(

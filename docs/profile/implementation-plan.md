@@ -5,10 +5,10 @@ Análisis del 30 de octubre de 2026. Base del cliente:
 Contrato backend consultado en `cluster-jam`, commit
 `41f620b581853a3e8cffdca43d296ff38f910e08` (Profile PR #53).
 
-Avance: PR #13 integrado por squash con autorización explícita en `4bdaee9`.
-La rama `feat/profile/add-profile-screen` parte de ese main actualizado y añade
-la consulta real desde la pestaña Perfil. Onboarding/edición y direcciones siguen
-pendientes de sus ramas. No se crean ni ejecutan pruebas automatizadas.
+Avance: PR #13 integrado por squash con autorización explícita en `4bdaee9` y
+PR #14 en `1c608a3`. La rama `feat/profile/add-profile-forms` parte de ese main
+actualizado y añade onboarding/edición y navegación según backend. Direcciones
+queda como última rama. No se crean ni ejecutan pruebas automatizadas.
 
 ## Arquitectura existente y referencias
 

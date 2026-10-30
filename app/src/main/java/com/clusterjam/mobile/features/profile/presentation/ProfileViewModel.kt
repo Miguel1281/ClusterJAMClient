@@ -7,6 +7,7 @@ import com.clusterjam.mobile.features.auth.domain.model.SessionState
 import com.clusterjam.mobile.features.auth.domain.repository.AuthRepository
 import com.clusterjam.mobile.features.auth.presentation.AuthMessage
 import com.clusterjam.mobile.features.profile.domain.model.ProfileFailure
+import com.clusterjam.mobile.features.profile.domain.model.ProfileSnapshot
 import com.clusterjam.mobile.features.profile.domain.repository.ProfileRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -111,6 +112,16 @@ class ProfileViewModel(
                     _uiState.value = ProfileUiState()
             }
         }
+    }
+
+    fun acceptServerProfile(snapshot: ProfileSnapshot) {
+        val owner =
+            (authRepository.sessionState.value as? SessionState.Authenticated)?.identity?.userId
+                ?: return
+        if (!visible || !snapshot.profile.userId.equals(owner, true)) return
+        stopLoading()
+        ownerId = owner
+        _uiState.value = ProfileUiState(status = ProfileLoadStatus.READY, snapshot = snapshot)
     }
 
     private fun isCurrent(operation: Long, owner: String): Boolean =
