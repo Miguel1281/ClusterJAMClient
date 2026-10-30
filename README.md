@@ -23,7 +23,8 @@ consume el teclado una sola vez. Se conserva `adjustResize`.
 
 Catálogo y perfil usan el mismo sistema visual. Los productos siguen siendo una vista previa;
 la búsqueda y los filtros están deshabilitados e identificados como próximos. La barra inferior
-ofrece las dos rutas implementadas: Catálogo y Perfil. El perfil muestra el correo real y las
+ofrece las dos rutas implementadas: Catálogo y Perfil. El perfil consulta nombre, teléfono,
+correo de contacto y onboarding reales de ProfileService, separados del correo de acceso y las
 acciones existentes de identidad, contraseña y cierre de sesión. No presenta controles de
 edición, guardado, direcciones, carrito o pedidos que simulen una integración pendiente.
 
@@ -62,7 +63,9 @@ Dentro de `com.clusterjam.mobile`:
   interfaz del repositorio y validación; no depende de Android, Compose ni Retrofit.
 - `features/auth/presentation`: formularios, `LoginViewModel`, `RegistrationViewModel`, `PasswordRecoveryViewModel` y traducción
   de fallos a mensajes locales de `strings.xml`. Solo consume el contrato del repositorio.
-- `features/catalog/presentation` y `features/profile/presentation`: prototipos existentes.
+- `features/catalog/presentation`: vista previa existente del catálogo.
+- `features/profile`: API/repositorio/modelos de Profile y pantalla con `ProfileViewModel`,
+  `StateFlow`, mensajes locales y consulta vinculada a la sesión/visibilidad.
 
 Están integradas las nueve operaciones Auth. Cada formulario tiene su ViewModel; el estado
 global y la coordinación de sesión siguen en `AppViewModel` y el repositorio compartido.
@@ -108,9 +111,9 @@ de URL no despliega ni comprueba la disponibilidad del backend.
 
 ## Integración incremental de Profile Service
 
-La primera rama de Profile añade la comunicación real de consulta/actualización,
-sus DTO, modelos y repositorio siguiendo los patrones de Auth. Todavía no conecta
-las pantallas: estas se entregan en los siguientes PR, después de integrar esta base.
+El PR #13 integró la comunicación real de consulta/actualización, sus DTO, modelos
+y repositorio siguiendo los patrones de Auth. La segunda rama conecta la pestaña
+Perfil con la consulta real; onboarding/edición y direcciones siguen en sus propios PR.
 El [análisis y plan](docs/profile/implementation-plan.md) describe los contratos,
 la navegación prevista y las cuatro ramas de implementación.
 
@@ -147,6 +150,23 @@ verifica la compilación con `:app:assembleDebug`. En GitHub, los PR de ramas
 `/profile/` y sus squash commits `(profile):` compilan debug/release sin ejecutar
 pruebas; el workflow mantiene la verificación anterior para otros cambios.
 Una compilación exitosa no demuestra el funcionamiento contra el backend.
+
+La pestaña Perfil llama a `GET /api/v1/profiles/me` mediante su repositorio cuando
+está visible y la identidad ya fue verificada. Muestra carga, datos reales,
+PENDING/COMPLETED y errores locales de red/servicio/sesión. Un 404
+`PROFILE_NOT_READY` muestra preparación del perfil y permite como máximo tres
+reintentos automáticos con esperas de 1, 2 y 4 segundos. Después ofrece reintento
+manual. Otros errores no generan sondeo automático.
+
+Salir de la pantalla, enviar la aplicación al fondo o perder la identidad detiene
+la espera/consulta y limpia el estado de contacto en memoria. Al volver se consulta
+de nuevo. Se descartan respuestas de otra identidad y no se guarda una bandera
+local de onboarding. El correo de acceso y las acciones Auth existentes siguen
+separados: un fallo de Profile no deshabilita el cierre de sesión.
+
+Esta etapa aún no cambia la entrada al catálogo según onboarding ni incorpora
+formularios o direcciones. Véase la [entrega 2](docs/profile/delivery-02.md) para
+los archivos y resultados de compilación de la pantalla.
 
 ## Contrato HTTP integrado
 
