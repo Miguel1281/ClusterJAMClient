@@ -3,6 +3,7 @@ package com.clusterjam.mobile.features.auth.data.repository
 import com.clusterjam.mobile.BuildConfig
 import com.clusterjam.mobile.core.network.SessionAccess
 import com.clusterjam.mobile.core.network.isProtectedApiRequest
+import com.clusterjam.mobile.core.network.isProtectedProfileRequest
 import com.clusterjam.mobile.core.network.parseRetryAfterMillis
 import com.clusterjam.mobile.features.auth.data.local.SecureStorage
 import com.clusterjam.mobile.features.auth.data.mapper.mapAuthError
@@ -50,6 +51,7 @@ class AuthRepositoryImpl(
     private val secureStorage: SecureStorage,
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
     private val apiBaseUrl: String = BuildConfig.AUTH_BASE_URL,
+    private val profileBaseUrl: String? = null,
 ) : AuthRepository, SessionAccess {
     private val sessionMutex = Mutex()
     private val sessionFence = Any()
@@ -447,7 +449,8 @@ class AuthRepositoryImpl(
                 val call = request(authorization)
                 val http = call.request()
                 require(
-                    isProtectedApiRequest(http, apiBaseUrl) &&
+                    (isProtectedApiRequest(http, apiBaseUrl) ||
+                        profileBaseUrl?.let { isProtectedProfileRequest(http, it) } == true) &&
                         http.header("Authorization") == authorization,
                 ) {
                     "SessionAccess requires a protected operation of the configured API."

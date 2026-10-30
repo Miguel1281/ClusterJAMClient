@@ -106,6 +106,48 @@ permite el emulador y la URL LAN configurada expresamente; release deniega clear
 La construcción release de verificación no requiere firma de publicación. La configuración
 de URL no despliega ni comprueba la disponibilidad del backend.
 
+## Integración incremental de Profile Service
+
+La primera rama de Profile añade la comunicación real de consulta/actualización,
+sus DTO, modelos y repositorio siguiendo los patrones de Auth. Todavía no conecta
+las pantallas: estas se entregan en los siguientes PR, después de integrar esta base.
+El [análisis y plan](docs/profile/implementation-plan.md) describe los contratos,
+la navegación prevista y las cuatro ramas de implementación.
+
+`profileBaseUrl` genera `BuildConfig.PROFILE_BASE_URL` y reutiliza `authBaseUrl`
+cuando no se indica: ambas APIs pueden publicarse en el mismo gateway. Para
+ejecutar Profile en otro puerto del equipo anfitrión del emulador:
+
+```powershell
+.\gradlew.bat :app:assembleDebug '-PauthBaseUrl=http://10.0.2.2:8080/' '-PprofileBaseUrl=http://10.0.2.2:8081/'
+```
+
+Profile debe estar escuchando en ese puerto; la propiedad no lo inicia. Las URL
+no incluyen `/api/v1`, credenciales, query ni fragmento. También pueden definirse
+en las propiedades Gradle del usuario. Release exige HTTPS para ambas; Profile
+puede heredar la URL HTTPS explícita de Auth. Los APK de distribución aplican
+las restricciones existentes de host real a las dos URL. La configuración de
+confianza de certificados/red debug existente se conserva.
+
+`AppContainer.profileRepository` ofrece `getMyProfile()` y `updateMyProfile()`.
+El primero devuelve datos y revisión del servidor. El segundo solo envía
+fullName/phone/contactEmail e incluye la revisión exacta en If-Match; la respuesta
+del servidor determina onboarding. Un 404 `PROFILE_NOT_READY` es distinto de un
+perfil PENDING; 412/428 requieren refrescar la revisión. No hay caché persistente
+de contacto ni una bandera local de onboarding.
+
+El repositorio usa el mismo `SessionAccess` de Auth: almacenamiento cifrado,
+renovación, invalidación y errores de sesión siguen centralizados. Las llamadas
+a Profile se limitan a su origen y ruta configurados. PATCH no se repite
+automáticamente; los errores HTTP conservan el código de Problem Details y no
+exponen mensajes internos del servidor.
+
+Durante esta implementación no se crean ni ejecutan pruebas automatizadas. Se
+verifica la compilación con `:app:assembleDebug`. En GitHub, los PR de ramas
+`/profile/` y sus squash commits `(profile):` compilan debug/release sin ejecutar
+pruebas; el workflow mantiene la verificación anterior para otros cambios.
+Una compilación exitosa no demuestra el funcionamiento contra el backend.
+
 ## Contrato HTTP integrado
 
 | Operación | Método y ruta | Respuesta esperada |

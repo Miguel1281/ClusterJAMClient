@@ -24,3 +24,15 @@ internal fun isProtectedApiRequest(request: Request, baseUrl: String): Boolean {
             "password-recoveries",
         )
 }
+
+internal fun isProtectedProfileRequest(request: Request, baseUrl: String): Boolean {
+    val base = HttpUrl.get(baseUrl)
+    val url = request.url()
+    return url.scheme() == base.scheme() &&
+        url.host() == base.host() &&
+        url.port() == base.port() &&
+        url.pathSegments() ==
+            base.pathSegments().filter(String::isNotEmpty) +
+                listOf("api", "v1", "profiles", "me") &&
+        request.method() in setOf("GET", "PATCH")
+}
