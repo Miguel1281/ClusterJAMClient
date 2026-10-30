@@ -43,6 +43,11 @@ import com.clusterjam.mobile.features.profile.presentation.ProfileLoadStatus
 import com.clusterjam.mobile.features.profile.presentation.ProfileScreen
 import com.clusterjam.mobile.features.profile.presentation.ProfileUiState
 import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressFormScreen
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressListScreen
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressStage
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressUiState
+import com.clusterjam.mobile.features.profile.presentation.addresses.AddressViewModel
 
 @Composable
 fun AppNavHost(
@@ -70,6 +75,10 @@ fun AppNavHost(
         if (factory != null) viewModel(factory = factory) else null
     val formViewModel: ProfileFormViewModel? =
         if (factory != null) viewModel(factory = factory) else null
+    val addressViewModel: AddressViewModel? =
+        if (factory != null) viewModel(factory = factory) else null
+    val addressState =
+        addressViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: AddressUiState()
     val profileState =
         profileViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: ProfileUiState()
     val formState =
@@ -88,6 +97,13 @@ fun AppNavHost(
             profileState.snapshot?.profile?.onboardingStatus == OnboardingStatus.COMPLETED
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
+    if (
+        addressViewModel != null &&
+            profileReady &&
+            backStackEntry?.destination?.route in setOf(Routes.ADDRESSES, Routes.ADDRESS_FORM)
+    ) {
+        ProfileLifecycle(addressViewModel::onVisible, addressViewModel::onHidden)
+    }
     val startDestination = remember {
         when {
             identity != null -> Routes.PROFILE_GATE
@@ -116,11 +132,14 @@ fun AppNavHost(
         formState.isOpen,
         formState.saved,
         formState.isBusy,
+        addressState.stage,
+        addressState.isWriting,
     ) {
         if (identity != null && profileReady) {
             val route = backStackEntry?.destination?.route
             if (route == Routes.PROFILE_GATE) {
                 when {
+                    addressState.stage != AddressStage.LIST -> showRoot(Routes.ADDRESS_FORM)
                     formState.isOpen &&
                         (formState.dirty ||
                             !completed ||
@@ -142,6 +161,14 @@ fun AppNavHost(
                         showRoot(Routes.ONBOARDING)
                     }
                 }
+            } else if (route == Routes.ADDRESSES && addressState.stage != AddressStage.LIST) {
+                navController.navigate(Routes.ADDRESS_FORM) { launchSingleTop = true }
+            } else if (
+                route == Routes.ADDRESS_FORM &&
+                    addressState.stage == AddressStage.LIST &&
+                    !addressState.isWriting
+            ) {
+                showRoot(Routes.ADDRESSES)
             } else if (route == Routes.CATALOG && !completed) {
                 formViewModel?.begin(ProfileFormMode.ONBOARDING)
                 showRoot(Routes.ONBOARDING)
@@ -370,6 +397,9 @@ fun AppNavHost(
                                     else ProfileFormMode.ONBOARDING,
                                 )
                             },
+                            onManageAddressesClick = {
+                                navController.navigate(Routes.ADDRESSES) { launchSingleTop = true }
+                            },
                         )
                 }
                 for (route in listOf(Routes.ONBOARDING, Routes.EDIT_PROFILE)) {
@@ -421,6 +451,47 @@ fun AppNavHost(
                             )
                         }
                     }
+                }
+                composable(Routes.ADDRESSES) {
+                    if (!profileReady)
+                        ProfileGateScreen(
+                            profileState,
+                            { profileViewModel?.refresh() },
+                            onLogout,
+                            onRefreshIdentity,
+                        )
+                    else if (addressViewModel != null)
+                        AddressListScreen(
+                            addressState,
+                            addressViewModel::beginCreate,
+                            addressViewModel::beginEdit,
+                            addressViewModel::makeDefault,
+                            addressViewModel::prepareDelete,
+                            addressViewModel::deleteConfirmed,
+                            addressViewModel::cancelDelete,
+                            addressViewModel::reload,
+                            { showRoot(Routes.PROFILE) },
+                        )
+                }
+                composable(Routes.ADDRESS_FORM) {
+                    if (!profileReady)
+                        ProfileGateScreen(
+                            profileState,
+                            { profileViewModel?.refresh() },
+                            onLogout,
+                            onRefreshIdentity,
+                        )
+                    else if (addressViewModel != null)
+                        AddressFormScreen(
+                            addressState,
+                            addressViewModel::change,
+                            addressViewModel::changeDefault,
+                            addressViewModel::save,
+                            addressViewModel::reload,
+                            addressViewModel::keepDraft,
+                            addressViewModel::useServerValues,
+                            addressViewModel::returnToList,
+                        )
                 }
             }
         }

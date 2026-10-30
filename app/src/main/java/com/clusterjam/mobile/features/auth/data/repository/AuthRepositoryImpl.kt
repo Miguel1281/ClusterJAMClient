@@ -455,7 +455,9 @@ class AuthRepositoryImpl(
                 ) {
                     "SessionAccess requires a protected operation of the configured API."
                 }
-                mayReplay = http.method() in setOf("GET", "HEAD", "DELETE")
+                mayReplay =
+                    http.method() in setOf("GET", "HEAD") ||
+                        (http.method() == "DELETE" && http.header("If-Match") == null)
                 ensureCurrent(expected)
                 val response = call.execute()
                 if (generation.get() != expected) {

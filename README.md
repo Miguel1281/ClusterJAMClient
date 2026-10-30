@@ -26,8 +26,9 @@ la búsqueda y los filtros están deshabilitados e identificados como próximos.
 ofrece las dos rutas implementadas: Catálogo y Perfil. El perfil consulta nombre, teléfono,
 correo de contacto y onboarding reales de ProfileService, separados del correo de acceso y las
 acciones existentes de identidad, contraseña y cierre de sesión. Permite completar el
-onboarding y editar el contacto mediante el backend. Direcciones se incorpora en el
-siguiente PR; no se presentan controles de carrito o pedidos sin integración.
+onboarding y editar el contacto mediante el backend. Mis direcciones permite listar,
+crear, editar, eliminar y seleccionar la predeterminada con datos reales. No se
+presentan controles de carrito o pedidos sin integración.
 
 `ClientPresentationTest` comprueba formularios de 320 y 390 dp, texto al 200 %, teclado real,
 recorrido de foco, errores visibles, conservación del formulario de registro, carga, éxito,
@@ -112,10 +113,9 @@ de URL no despliega ni comprueba la disponibilidad del backend.
 
 ## Integración incremental de Profile Service
 
-Los PR #13 y #14 integraron la comunicación real de consulta/actualización y la
-pantalla Perfil siguiendo los patrones de Auth. La tercera rama añade los formularios
-de onboarding/edición y la navegación según el estado real. Direcciones queda en
-la cuarta rama.
+Los PR #13–15 integraron la comunicación real, la pantalla Perfil, los formularios
+de onboarding/edición y la navegación siguiendo los patrones de Auth. La cuarta
+y última rama añade direcciones; su integración requiere autorización del PR final.
 El [análisis y plan](docs/profile/implementation-plan.md) describe los contratos,
 la navegación prevista y las cuatro ramas de implementación.
 
@@ -194,9 +194,34 @@ muestran los valores actuales y se exige decidir entre conservar el borrador o
 reemplazarlo. Después hace falta pulsar Guardar; no hay reenvío automático de PATCH.
 La espera Retry-After, si está presente, deshabilita el envío durante ese plazo.
 
-Véanse la [entrega 2](docs/profile/delivery-02.md) y la
-[entrega 3](docs/profile/delivery-03.md) para los archivos/resultados. Direcciones
-sigue pendiente de su propia rama.
+Véanse las [entregas 2](docs/profile/delivery-02.md),
+[3](docs/profile/delivery-03.md) y [4](docs/profile/delivery-04.md) para los archivos/resultados.
+El [informe final](docs/profile/final-report.md) reúne el alcance y los límites de verificación.
+
+### Direcciones
+
+Desde Perfil, **Mis direcciones** abre la lista real, incluso con onboarding PENDING.
+El alta y la edición comparten AuthForm/AuthField y un AddressViewModel con StateFlow y
+SavedStateHandle. El formulario incluye etiqueta, destinatario, calle, números exterior/
+interior, colonia, municipio, estado, código postal como texto, país ISO alpha-2 y selección
+predeterminada. El número interior es opcional; vaciarlo envía null explícito. La
+serialización Gson se limita a ese DTO y no cambia la omisión de campos del PATCH de perfil.
+
+Crear usa el ETag de colección; editar, seleccionar predeterminada y eliminar usan el
+ETag de ítem. Antes de eliminar se obtiene el ítem actual y se muestra la confirmación;
+antes de seleccionar predeterminada también se obtiene su revisión actual. Tras una
+mutación confirmada se vuelve a consultar la lista completa. No se marca una predeterminada
+de forma optimista, no se selecciona automáticamente la primera y eliminarla no elige otra.
+
+Los conflictos o guardados inciertos requieren lectura y revisión antes de otro envío.
+En un alta incierta se muestra el directorio actual para que se revise si la dirección ya
+existe; no se reenvía POST automáticamente. POST/PATCH y DELETE con If-Match se envían
+como máximo una vez; se conserva el comportamiento previo de Auth para DELETE sin condición.
+
+El borrador de dirección guarda únicamente campos, propietario, ID y etapa en el estado
+guardado de Android. No guarda tokens, revisiones ni una orden pendiente de eliminación.
+El cambio de cuenta/cierre de sesión lo limpia; salir de formularios modificados pide
+confirmación. El listado, sus revisiones y los diálogos se obtienen de nuevo al volver.
 
 ## Contrato HTTP integrado
 

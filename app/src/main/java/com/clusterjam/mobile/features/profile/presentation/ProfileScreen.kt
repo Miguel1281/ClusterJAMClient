@@ -32,6 +32,7 @@ fun ProfileScreen(
     state: ProfileUiState = ProfileUiState(),
     onRefreshProfileClick: () -> Unit = {},
     onEditProfileClick: (() -> Unit)? = null,
+    onManageAddressesClick: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -43,6 +44,15 @@ fun ProfileScreen(
         ) {
             ScreenHeading("Mi perfil", "Tu cuenta, en un solo lugar.")
             ProfileContact(state, onRefreshProfileClick, enabled = !isLoading)
+            if (state.status == ProfileLoadStatus.READY && onManageAddressesClick != null) {
+                OutlinedButton(
+                    onClick = onManageAddressesClick,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.address_title))
+                }
+            }
             if (state.status == ProfileLoadStatus.READY && onEditProfileClick != null) {
                 OutlinedButton(
                     onClick = onEditProfileClick,
