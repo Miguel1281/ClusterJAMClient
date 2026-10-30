@@ -3,6 +3,7 @@ package com.clusterjam.mobile.core.network
 import android.util.Log
 import com.clusterjam.mobile.BuildConfig
 import java.util.concurrent.TimeUnit
+import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -89,9 +90,18 @@ internal fun createRetrofit(
         )
     }
 
+    val mutationClient = clientBuilder.build()
+    // Recover stale pooled connections for reads without replaying a mutation after an I/O failure.
+    // newBuilder shares the pool, dispatcher, interceptors and timeouts with the mutation client.
+    val readClient = mutationClient.newBuilder().retryOnConnectionFailure(true).build()
+    val callFactory = Call.Factory { request ->
+        val client = if (request.method() in setOf("GET", "HEAD")) readClient else mutationClient
+        client.newCall(request)
+    }
+
     return Retrofit.Builder()
         .baseUrl(baseUrl)
-        .client(clientBuilder.build())
+        .callFactory(callFactory)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 }
