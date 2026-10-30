@@ -28,7 +28,6 @@ fun ProfileScreen(
     accessEmail: String = "",
     isLoading: Boolean = false,
     onRecoverPasswordClick: () -> Unit = {},
-    onRefreshIdentityClick: () -> Unit = {},
     state: ProfileUiState = ProfileUiState(),
     onRefreshProfileClick: () -> Unit = {},
     onEditProfileClick: (() -> Unit)? = null,
@@ -95,9 +94,6 @@ fun ProfileScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = onRefreshIdentityClick, enabled = !isLoading) {
-                            Text("Actualizar correo de acceso")
-                        }
                     }
                 }
             }
