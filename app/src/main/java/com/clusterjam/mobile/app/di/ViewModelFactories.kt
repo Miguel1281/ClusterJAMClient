@@ -11,6 +11,7 @@ import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
 import com.clusterjam.mobile.features.auth.presentation.recovery.PasswordRecoveryViewModel
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 import com.clusterjam.mobile.features.profile.domain.repository.ProfileRepository
+import com.clusterjam.mobile.features.profile.presentation.ProfileFormViewModel
 import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
 
 class ViewModelFactories(
@@ -18,6 +19,15 @@ class ViewModelFactories(
     private val profileRepository: ProfileRepository? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+        if (modelClass == ProfileFormViewModel::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            return ProfileFormViewModel(
+                requireNotNull(profileRepository),
+                repository,
+                extras.createSavedStateHandle(),
+            )
+                as T
+        }
         if (modelClass == PasswordRecoveryViewModel::class.java) {
             @Suppress("UNCHECKED_CAST")
             return PasswordRecoveryViewModel(repository, extras.createSavedStateHandle()) as T
@@ -35,6 +45,12 @@ class ViewModelFactories(
                 AppViewModel::class.java -> AppViewModel(repository)
                 ProfileViewModel::class.java ->
                     ProfileViewModel(requireNotNull(profileRepository), repository)
+                ProfileFormViewModel::class.java ->
+                    ProfileFormViewModel(
+                        requireNotNull(profileRepository),
+                        repository,
+                        SavedStateHandle(),
+                    )
                 LoginViewModel::class.java -> LoginViewModel(repository)
                 PasswordRecoveryViewModel::class.java -> PasswordRecoveryViewModel(repository)
                 RegistrationViewModel::class.java ->

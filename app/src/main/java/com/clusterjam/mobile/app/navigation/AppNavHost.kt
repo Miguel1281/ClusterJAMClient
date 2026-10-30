@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -32,7 +33,15 @@ import com.clusterjam.mobile.features.auth.presentation.registration.RegisterScr
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationStep
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 import com.clusterjam.mobile.features.catalog.presentation.CatalogScreen
+import com.clusterjam.mobile.features.profile.domain.model.OnboardingStatus
+import com.clusterjam.mobile.features.profile.presentation.ProfileFormMode
+import com.clusterjam.mobile.features.profile.presentation.ProfileFormScreen
+import com.clusterjam.mobile.features.profile.presentation.ProfileFormUiState
+import com.clusterjam.mobile.features.profile.presentation.ProfileFormViewModel
+import com.clusterjam.mobile.features.profile.presentation.ProfileGateScreen
+import com.clusterjam.mobile.features.profile.presentation.ProfileLoadStatus
 import com.clusterjam.mobile.features.profile.presentation.ProfileScreen
+import com.clusterjam.mobile.features.profile.presentation.ProfileUiState
 import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
 
 @Composable
@@ -48,13 +57,120 @@ fun AppNavHost(
     val recoveryState by recoveryViewModel.uiState.collectAsStateWithLifecycle()
     val loginState by loginViewModel.uiState.collectAsStateWithLifecycle()
     val registrationState by registrationViewModel.uiState.collectAsStateWithLifecycle()
+    val factory =
+        if (identity != null) {
+            val container =
+                (LocalContext.current.applicationContext as ClusterJamApplication).container
+            remember(container) {
+                ViewModelFactories(container.authRepository, container.profileRepository)
+            }
+        } else null
+    // Like Auth's form ViewModels, these survive Activity/navigation-graph recreation.
+    val profileViewModel: ProfileViewModel? =
+        if (factory != null) viewModel(factory = factory) else null
+    val formViewModel: ProfileFormViewModel? =
+        if (factory != null) viewModel(factory = factory) else null
+    val profileState =
+        profileViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: ProfileUiState()
+    val formState =
+        formViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: ProfileFormUiState()
+    LaunchedEffect(formState.snapshot?.revision, formState.isBusy, formState.needsReload) {
+        if (!formState.isBusy && !formState.needsReload) {
+            formState.snapshot?.let { profileViewModel?.acceptServerProfile(it) }
+        }
+    }
+    if (profileViewModel != null)
+        ProfileLifecycle(profileViewModel::onVisible, profileViewModel::onHidden)
+    val profileReady =
+        profileState.status == ProfileLoadStatus.READY && profileState.snapshot != null
+    val completed =
+        profileReady &&
+            profileState.snapshot?.profile?.onboardingStatus == OnboardingStatus.COMPLETED
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val startDestination = remember {
         when {
-            identity != null -> Routes.CATALOG
+            identity != null -> Routes.PROFILE_GATE
             registrationState.step == RegistrationStep.WAITING_CODE -> Routes.EMAIL_CONFIRMATION
             else -> Routes.LOGIN
+        }
+    }
+
+    fun showRoot(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.id) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+    fun openForm(mode: ProfileFormMode) {
+        formViewModel?.begin(mode)
+        navController.navigate(
+            if (mode == ProfileFormMode.ONBOARDING) Routes.ONBOARDING else Routes.EDIT_PROFILE,
+        ) {
+            launchSingleTop = true
+        }
+    }
+    LaunchedEffect(
+        backStackEntry?.destination?.route,
+        profileState.snapshot?.revision,
+        formState.isOpen,
+        formState.saved,
+        formState.isBusy,
+    ) {
+        if (identity != null && profileReady) {
+            val route = backStackEntry?.destination?.route
+            if (route == Routes.PROFILE_GATE) {
+                when {
+                    formState.isOpen &&
+                        (formState.dirty ||
+                            !completed ||
+                            formState.mode == ProfileFormMode.EDIT) -> {
+                        val mode =
+                            if (completed) ProfileFormMode.EDIT else ProfileFormMode.ONBOARDING
+                        formViewModel?.resumeMode(mode)
+                        showRoot(
+                            if (mode == ProfileFormMode.EDIT) Routes.EDIT_PROFILE
+                            else Routes.ONBOARDING,
+                        )
+                    }
+                    completed -> {
+                        formViewModel?.close()
+                        showRoot(Routes.CATALOG)
+                    }
+                    else -> {
+                        formViewModel?.begin(ProfileFormMode.ONBOARDING)
+                        showRoot(Routes.ONBOARDING)
+                    }
+                }
+            } else if (route == Routes.CATALOG && !completed) {
+                formViewModel?.begin(ProfileFormMode.ONBOARDING)
+                showRoot(Routes.ONBOARDING)
+            } else if (
+                route == Routes.ONBOARDING && completed && !formState.saved && !formState.isBusy
+            ) {
+                if (formState.isOpen && formState.dirty) {
+                    formViewModel?.resumeMode(ProfileFormMode.EDIT)
+                    showRoot(Routes.EDIT_PROFILE)
+                } else {
+                    formViewModel?.close()
+                    showRoot(Routes.CATALOG)
+                }
+            } else if (
+                route == Routes.EDIT_PROFILE &&
+                    !completed &&
+                    formState.isOpen &&
+                    !formState.saved &&
+                    !formState.isBusy
+            ) {
+                formViewModel?.resumeMode(ProfileFormMode.ONBOARDING)
+                showRoot(Routes.ONBOARDING)
+            } else if (
+                route in setOf(Routes.ONBOARDING, Routes.EDIT_PROFILE) &&
+                    !formState.isOpen &&
+                    !formState.saved
+            ) {
+                showRoot(if (completed) Routes.PROFILE else Routes.PROFILE_GATE)
+            }
         }
     }
 
@@ -96,8 +212,10 @@ fun AppNavHost(
         enabled = recoveryState.isBusy || loginState.isLoading || registrationState.isBusy,
     ) {}
     MainScaffold(
-        currentRoute = backStackEntry?.destination?.route,
-        onNavigateToCatalog = { navController.popBackStack(Routes.CATALOG, false) },
+        currentRoute =
+            backStackEntry?.destination?.route.takeIf { identity == null || profileReady },
+        catalogEnabled = completed,
+        onNavigateToCatalog = { if (completed) showRoot(Routes.CATALOG) },
         onNavigateToProfile = {
             navController.navigate(Routes.PROFILE) { launchSingleTop = true }
         },
@@ -206,54 +324,127 @@ fun AppNavHost(
                 )
             }
             if (identity != null) {
-                composable(Routes.CATALOG) {
-                    CatalogScreen()
-                }
-                composable(Routes.PROFILE) {
-                    val container =
-                        (LocalContext.current.applicationContext as ClusterJamApplication).container
-                    val factory =
-                        remember(container) {
-                            ViewModelFactories(
-                                container.authRepository,
-                                container.profileRepository,
-                            )
-                        }
-                    val profileViewModel: ProfileViewModel = viewModel(factory = factory)
-                    val profileState by profileViewModel.uiState.collectAsStateWithLifecycle()
-                    val owner = LocalLifecycleOwner.current
-                    DisposableEffect(owner, profileViewModel) {
-                        val observer = LifecycleEventObserver { _, event ->
-                            when (event) {
-                                Lifecycle.Event.ON_START -> profileViewModel.onVisible()
-                                Lifecycle.Event.ON_STOP -> profileViewModel.onHidden()
-                                else -> Unit
-                            }
-                        }
-                        owner.lifecycle.addObserver(observer)
-                        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
-                            profileViewModel.onVisible()
-                        onDispose {
-                            owner.lifecycle.removeObserver(observer)
-                            profileViewModel.onHidden()
-                        }
-                    }
-                    ProfileScreen(
-                        onLogoutClick = onLogout,
-                        accessEmail = identity.email,
-                        isLoading = recoveryState.isBusy || isSessionBusy,
-                        onRecoverPasswordClick = {
-                            loginViewModel.clearError()
-                            registrationViewModel.clearNotice()
-                            recoveryViewModel.begin(identity.email)
-                            navController.navigate(Routes.RECOVERY)
-                        },
-                        onRefreshIdentityClick = onRefreshIdentity,
-                        state = profileState,
-                        onRefreshProfileClick = profileViewModel::refresh,
+                composable(Routes.PROFILE_GATE) {
+                    ProfileGateScreen(
+                        profileState,
+                        { profileViewModel?.refresh() },
+                        onLogout,
+                        onRefreshIdentity,
                     )
                 }
+                composable(Routes.CATALOG) {
+                    if (completed) CatalogScreen()
+                    else
+                        ProfileGateScreen(
+                            profileState,
+                            { profileViewModel?.refresh() },
+                            onLogout,
+                            onRefreshIdentity,
+                        )
+                }
+                composable(Routes.PROFILE) {
+                    if (!profileReady)
+                        ProfileGateScreen(
+                            profileState,
+                            { profileViewModel?.refresh() },
+                            onLogout,
+                            onRefreshIdentity,
+                        )
+                    else
+                        ProfileScreen(
+                            onLogoutClick = onLogout,
+                            accessEmail = identity.email,
+                            isLoading = recoveryState.isBusy || isSessionBusy,
+                            onRecoverPasswordClick = {
+                                loginViewModel.clearError()
+                                registrationViewModel.clearNotice()
+                                recoveryViewModel.begin(identity.email)
+                                navController.navigate(Routes.RECOVERY)
+                            },
+                            onRefreshIdentityClick = onRefreshIdentity,
+                            state = profileState,
+                            onRefreshProfileClick = { profileViewModel?.refresh() },
+                            onEditProfileClick = {
+                                openForm(
+                                    if (completed) ProfileFormMode.EDIT
+                                    else ProfileFormMode.ONBOARDING,
+                                )
+                            },
+                        )
+                }
+                for (route in listOf(Routes.ONBOARDING, Routes.EDIT_PROFILE)) {
+                    composable(route) {
+                        if (!profileReady)
+                            ProfileGateScreen(
+                                profileState,
+                                { profileViewModel?.refresh() },
+                                onLogout,
+                                onRefreshIdentity,
+                            )
+                        else if (formViewModel != null) {
+                            ProfileLifecycle(formViewModel::onVisible, formViewModel::onHidden)
+                            fun leaveForm() {
+                                if (formState.needsReload) profileViewModel?.refresh()
+                                else
+                                    formState.snapshot?.let {
+                                        profileViewModel?.acceptServerProfile(it)
+                                    }
+                                formViewModel.close()
+                                showRoot(Routes.PROFILE)
+                            }
+                            ProfileFormScreen(
+                                state = formState,
+                                onNameChange = formViewModel::changeName,
+                                onPhoneChange = formViewModel::changePhone,
+                                onEmailChange = formViewModel::changeEmail,
+                                onSave = formViewModel::save,
+                                onReload = formViewModel::reload,
+                                onKeepDraft = formViewModel::keepDraft,
+                                onUseServer = formViewModel::useServerValues,
+                                onBack = ::leaveForm,
+                                onContinue = {
+                                    val saved = formState.snapshot
+                                    if (
+                                        formState.saved &&
+                                            saved?.profile?.onboardingStatus ==
+                                                OnboardingStatus.COMPLETED
+                                    ) {
+                                        profileViewModel?.acceptServerProfile(saved)
+                                        val destination =
+                                            if (formState.mode == ProfileFormMode.ONBOARDING)
+                                                Routes.CATALOG
+                                            else Routes.PROFILE
+                                        formViewModel.close()
+                                        showRoot(destination)
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProfileLifecycle(onStart: () -> Unit, onStop: () -> Unit) {
+    val owner = LocalLifecycleOwner.current
+    val start = rememberUpdatedState(onStart)
+    val stop = rememberUpdatedState(onStop)
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> start.value()
+                Lifecycle.Event.ON_STOP -> stop.value()
+                else -> Unit
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start.value()
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            stop.value()
         }
     }
 }
