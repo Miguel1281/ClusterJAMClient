@@ -9,6 +9,7 @@ plugins {
 val distributeApk =
     providers.gradleProperty("distributeApk").map(String::toBooleanStrict).orElse(false).get()
 val configuredAuthBaseUrl = providers.gradleProperty("authBaseUrl")
+val configuredProfileBaseUrl = providers.gradleProperty("profileBaseUrl")
 val apkVersionCode =
     providers
         .gradleProperty("apkVersionCode")
@@ -28,37 +29,44 @@ if (distributeApk) {
     }
 }
 
-val authBaseUrl =
-    configuredAuthBaseUrl
-        .orElse("http://10.0.2.2:8080/")
-        .map { value ->
-            val uri = URI(value.trim())
-            require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) {
-                "authBaseUrl must be an absolute HTTP or HTTPS URL."
-            }
-            require(uri.userInfo == null && uri.query == null && uri.fragment == null) {
-                "authBaseUrl must not include credentials, a query or a fragment."
-            }
-            if (distributeApk) {
-                val host = uri.host.lowercase()
-                require(
-                    host !in
-                        setOf(
-                            "10.0.2.2",
-                            "10.0.3.2",
-                            "localhost",
-                            "0.0.0.0",
-                            "[::1]",
-                            "::1",
-                            "192.168.1.x",
-                        ) && !host.startsWith("127.") && !host.endsWith(".localhost"),
-                ) {
-                    "authBaseUrl must use a real LAN or published host, not an emulator or placeholder."
-                }
-            }
-            uri.toASCIIString().let { if (it.endsWith("/")) it else "$it/" }
+fun serviceBaseUrl(value: String, propertyName: String): String {
+    val uri = URI(value.trim())
+    require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) {
+        "$propertyName must be an absolute HTTP or HTTPS URL."
+    }
+    require(uri.userInfo == null && uri.query == null && uri.fragment == null) {
+        "$propertyName must not include credentials, a query or a fragment."
+    }
+    if (distributeApk) {
+        val host = uri.host.lowercase()
+        require(
+            host !in
+                setOf(
+                    "10.0.2.2",
+                    "10.0.3.2",
+                    "localhost",
+                    "0.0.0.0",
+                    "[::1]",
+                    "::1",
+                    "192.168.1.x",
+                ) && !host.startsWith("127.") && !host.endsWith(".localhost"),
+        ) {
+            "$propertyName must use a real LAN or published host, not an emulator or placeholder."
         }
-        .get()
+    }
+    return uri.toASCIIString().let { if (it.endsWith("/")) it else "$it/" }
+}
+
+val authBaseUrl =
+    serviceBaseUrl(
+        configuredAuthBaseUrl.orElse("http://10.0.2.2:8080/").get(),
+        "authBaseUrl",
+    )
+val profileBaseUrl =
+    serviceBaseUrl(
+        configuredProfileBaseUrl.orElse(authBaseUrl).get(),
+        "profileBaseUrl",
+    )
 
 android {
     namespace = "com.clusterjam.mobile"
@@ -73,6 +81,7 @@ android {
         versionCode = apkVersionCode
         versionName = if (distributeApk) "1.0-test.$apkVersionCode" else "1.0"
         buildConfigField("String", "AUTH_BASE_URL", "\"$authBaseUrl\"")
+        buildConfigField("String", "PROFILE_BASE_URL", "\"$profileBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -127,6 +136,20 @@ androidComponents {
                         "String",
                         "\"$authBaseUrl\"",
                         "Explicit HTTPS backend for release",
+                    )
+                },
+            )
+        requireNotNull(variant.buildConfigFields)
+            .put(
+                "PROFILE_BASE_URL",
+                configuredProfileBaseUrl.orElse(configuredAuthBaseUrl).orElse("").map { explicit ->
+                    require(explicit.isNotBlank() && URI(explicit.trim()).scheme == "https") {
+                        "Release requires an explicit HTTPS profileBaseUrl or authBaseUrl."
+                    }
+                    BuildConfigField(
+                        "String",
+                        "\"$profileBaseUrl\"",
+                        "Explicit HTTPS Profile backend or shared gateway",
                     )
                 },
             )

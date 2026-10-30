@@ -5,6 +5,7 @@ import com.clusterjam.mobile.BuildConfig
 import java.util.concurrent.TimeUnit
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody
 import okio.BufferedSink
 import retrofit2.Retrofit
@@ -14,19 +15,28 @@ class NetworkModule {
     val retrofit: Retrofit by lazy {
         createRetrofit(BuildConfig.AUTH_BASE_URL, logRequests = BuildConfig.DEBUG)
     }
+
+    val profileRetrofit: Retrofit by lazy {
+        createRetrofit(
+            BuildConfig.PROFILE_BASE_URL,
+            logRequests = BuildConfig.DEBUG,
+            protectedRequest = { isProtectedProfileRequest(it, BuildConfig.PROFILE_BASE_URL) },
+        )
+    }
 }
 
-internal fun createRetrofit(baseUrl: String, logRequests: Boolean = false): Retrofit {
+internal fun createRetrofit(
+    baseUrl: String,
+    logRequests: Boolean = false,
+    protectedRequest: (Request) -> Boolean = { isProtectedApiRequest(it, baseUrl) },
+): Retrofit {
     val clientBuilder =
         OkHttpClient.Builder()
             .retryOnConnectionFailure(false)
             .addNetworkInterceptor { chain ->
                 // Recheck each network exchange, including redirects within the same host.
                 val request = chain.request()
-                if (
-                    request.header("Authorization") != null &&
-                        !isProtectedApiRequest(request, baseUrl)
-                ) {
+                if (request.header("Authorization") != null && !protectedRequest(request)) {
                     throw java.io.IOException(
                         "Authorization is restricted to the configured protected API.",
                     )
@@ -35,21 +45,18 @@ internal fun createRetrofit(baseUrl: String, logRequests: Boolean = false): Retr
             }
             .addInterceptor { chain ->
                 val original = chain.request()
-                if (
-                    original.header("Authorization") != null &&
-                        !isProtectedApiRequest(original, baseUrl)
-                ) {
+                if (original.header("Authorization") != null && !protectedRequest(original)) {
                     throw java.io.IOException(
                         "Authorization is restricted to protected operations of the configured API.",
                     )
                 }
                 val body = original.body()
                 val request =
-                    if (original.method() == "POST" && body != null) {
+                    if (original.method() in setOf("POST", "PATCH") && body != null) {
                         original
                             .newBuilder()
                             .method(
-                                "POST",
+                                original.method(),
                                 object : RequestBody() {
                                     override fun contentType() = body.contentType()
 

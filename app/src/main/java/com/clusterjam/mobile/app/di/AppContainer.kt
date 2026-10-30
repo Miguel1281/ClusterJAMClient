@@ -10,6 +10,9 @@ import com.clusterjam.mobile.features.auth.data.local.SecureStorageImpl
 import com.clusterjam.mobile.features.auth.data.remote.AuthApiService
 import com.clusterjam.mobile.features.auth.data.repository.AuthRepositoryImpl
 import com.clusterjam.mobile.features.auth.domain.repository.AuthRepository
+import com.clusterjam.mobile.features.profile.data.remote.ProfileApiService
+import com.clusterjam.mobile.features.profile.data.repository.ProfileRepositoryImpl
+import com.clusterjam.mobile.features.profile.domain.repository.ProfileRepository
 
 class AppContainer(context: Context) {
     private val applicationContext = context.applicationContext
@@ -20,7 +23,12 @@ class AppContainer(context: Context) {
     }
 
     private val sharedAuthRepository by lazy {
-        AuthRepositoryImpl(authApiService, secureStorage, apiBaseUrl = BuildConfig.AUTH_BASE_URL)
+        AuthRepositoryImpl(
+            authApiService,
+            secureStorage,
+            apiBaseUrl = BuildConfig.AUTH_BASE_URL,
+            profileBaseUrl = BuildConfig.PROFILE_BASE_URL,
+        )
     }
 
     val authRepository: AuthRepository
@@ -28,6 +36,14 @@ class AppContainer(context: Context) {
 
     val sessionAccess: SessionAccess
         get() = sharedAuthRepository
+
+    private val profileApiService: ProfileApiService by lazy {
+        networkModule.profileRetrofit.create(ProfileApiService::class.java)
+    }
+
+    val profileRepository: ProfileRepository by lazy {
+        ProfileRepositoryImpl(profileApiService, sessionAccess)
+    }
 
     val healthApiService: HealthApiService by lazy {
         networkModule.retrofit.create(HealthApiService::class.java)
