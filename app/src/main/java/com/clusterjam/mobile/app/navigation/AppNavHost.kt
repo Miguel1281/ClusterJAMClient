@@ -9,11 +9,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.clusterjam.mobile.ClusterJamApplication
+import com.clusterjam.mobile.app.di.ViewModelFactories
 import com.clusterjam.mobile.features.auth.domain.model.VerifiedIdentity
 import com.clusterjam.mobile.features.auth.presentation.login.LoginScreen
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
@@ -26,6 +33,7 @@ import com.clusterjam.mobile.features.auth.presentation.registration.Registratio
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
 import com.clusterjam.mobile.features.catalog.presentation.CatalogScreen
 import com.clusterjam.mobile.features.profile.presentation.ProfileScreen
+import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
 
 @Composable
 fun AppNavHost(
@@ -202,6 +210,34 @@ fun AppNavHost(
                     CatalogScreen()
                 }
                 composable(Routes.PROFILE) {
+                    val container =
+                        (LocalContext.current.applicationContext as ClusterJamApplication).container
+                    val factory =
+                        remember(container) {
+                            ViewModelFactories(
+                                container.authRepository,
+                                container.profileRepository,
+                            )
+                        }
+                    val profileViewModel: ProfileViewModel = viewModel(factory = factory)
+                    val profileState by profileViewModel.uiState.collectAsStateWithLifecycle()
+                    val owner = LocalLifecycleOwner.current
+                    DisposableEffect(owner, profileViewModel) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            when (event) {
+                                Lifecycle.Event.ON_START -> profileViewModel.onVisible()
+                                Lifecycle.Event.ON_STOP -> profileViewModel.onHidden()
+                                else -> Unit
+                            }
+                        }
+                        owner.lifecycle.addObserver(observer)
+                        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+                            profileViewModel.onVisible()
+                        onDispose {
+                            owner.lifecycle.removeObserver(observer)
+                            profileViewModel.onHidden()
+                        }
+                    }
                     ProfileScreen(
                         onLogoutClick = onLogout,
                         accessEmail = identity.email,
@@ -213,6 +249,8 @@ fun AppNavHost(
                             navController.navigate(Routes.RECOVERY)
                         },
                         onRefreshIdentityClick = onRefreshIdentity,
+                        state = profileState,
+                        onRefreshProfileClick = profileViewModel::refresh,
                     )
                 }
             }

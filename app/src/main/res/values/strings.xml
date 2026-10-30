@@ -104,4 +104,18 @@
     <string name="nav_cart">Carrito</string>
     <string name="nav_orders">Pedidos</string>
     <string name="nav_profile">Perfil</string>
+    <string name="profile_contact_title">Datos de contacto</string>
+    <string name="profile_full_name">Nombre completo</string>
+    <string name="profile_phone">Teléfono</string>
+    <string name="profile_contact_email">Correo de contacto</string>
+    <string name="profile_contact_hint">Este correo se usa para contacto y puede ser distinto del correo de acceso.</string>
+    <string name="profile_missing_value">Sin completar</string>
+    <string name="profile_loading">Consultando tu perfil…</string>
+    <string name="profile_provisioning_retry">Tu cuenta ya está creada. Estamos preparando tu perfil y volveremos a consultarlo en unos segundos.</string>
+    <string name="profile_provisioning">Tu perfil todavía se está preparando. Vuelve a intentar en unos momentos.</string>
+    <string name="profile_pending">Perfil pendiente: falta completar tus datos de contacto.</string>
+    <string name="profile_completed">Perfil completado.</string>
+    <string name="profile_refresh">Actualizar datos de contacto</string>
+    <string name="profile_error_validation">Revisa el nombre, el teléfono y el correo de contacto.</string>
+    <string name="profile_error_revision">Los datos cambiaron. Vuelve a consultarlos antes de guardar.</string>
 </resources>

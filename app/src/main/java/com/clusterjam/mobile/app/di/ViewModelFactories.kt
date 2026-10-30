@@ -10,8 +10,13 @@ import com.clusterjam.mobile.features.auth.domain.repository.AuthRepository
 import com.clusterjam.mobile.features.auth.presentation.login.LoginViewModel
 import com.clusterjam.mobile.features.auth.presentation.recovery.PasswordRecoveryViewModel
 import com.clusterjam.mobile.features.auth.presentation.registration.RegistrationViewModel
+import com.clusterjam.mobile.features.profile.domain.repository.ProfileRepository
+import com.clusterjam.mobile.features.profile.presentation.ProfileViewModel
 
-class ViewModelFactories(private val repository: AuthRepository) : ViewModelProvider.Factory {
+class ViewModelFactories(
+    private val repository: AuthRepository,
+    private val profileRepository: ProfileRepository? = null,
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
         if (modelClass == PasswordRecoveryViewModel::class.java) {
             @Suppress("UNCHECKED_CAST")
@@ -28,6 +33,8 @@ class ViewModelFactories(private val repository: AuthRepository) : ViewModelProv
         val instance =
             when (modelClass) {
                 AppViewModel::class.java -> AppViewModel(repository)
+                ProfileViewModel::class.java ->
+                    ProfileViewModel(requireNotNull(profileRepository), repository)
                 LoginViewModel::class.java -> LoginViewModel(repository)
                 PasswordRecoveryViewModel::class.java -> PasswordRecoveryViewModel(repository)
                 RegistrationViewModel::class.java ->

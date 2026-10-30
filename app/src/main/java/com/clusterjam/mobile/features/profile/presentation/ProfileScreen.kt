@@ -9,13 +9,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.clusterjam.mobile.R
+import com.clusterjam.mobile.core.ui.components.FeedbackTone
 import com.clusterjam.mobile.core.ui.components.ScreenHeading
+import com.clusterjam.mobile.core.ui.components.StatusMessage
 import com.clusterjam.mobile.core.ui.theme.ClusterJAMClientTheme
 import com.clusterjam.mobile.core.ui.theme.JamSpacing
+import com.clusterjam.mobile.features.profile.domain.model.OnboardingStatus
 
 @Composable
 fun ProfileScreen(
@@ -24,6 +29,8 @@ fun ProfileScreen(
     isLoading: Boolean = false,
     onRecoverPasswordClick: () -> Unit = {},
     onRefreshIdentityClick: () -> Unit = {},
+    state: ProfileUiState = ProfileUiState(),
+    onRefreshProfileClick: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -34,6 +41,7 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             ScreenHeading("Mi perfil", "Tu cuenta, en un solo lugar.")
+            ProfileContact(state, onRefreshProfileClick, enabled = !isLoading)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "Cuenta",
@@ -98,15 +106,93 @@ fun ProfileScreen(
                     if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Datos de contacto", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "La edición de datos y direcciones estará disponible próximamente.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
+    }
+}
+
+@Composable
+private fun ProfileContact(state: ProfileUiState, onRefresh: () -> Unit, enabled: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(JamSpacing.Medium)) {
+        Text(
+            stringResource(R.string.profile_contact_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        when (state.status) {
+            ProfileLoadStatus.IDLE,
+            ProfileLoadStatus.LOADING -> {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(stringResource(R.string.profile_loading))
+            }
+            ProfileLoadStatus.PROVISIONING -> {
+                StatusMessage(
+                    stringResource(
+                        if (state.automaticRetry) R.string.profile_provisioning_retry
+                        else R.string.profile_provisioning,
+                    ),
+                )
+                if (state.automaticRetry) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            ProfileLoadStatus.ERROR ->
+                state.error?.let {
+                    StatusMessage(it.resolve(LocalContext.current), FeedbackTone.Error)
+                }
+            ProfileLoadStatus.READY ->
+                state.snapshot?.profile?.let { profile ->
+                    val completed = profile.onboardingStatus == OnboardingStatus.COMPLETED
+                    StatusMessage(
+                        stringResource(
+                            if (completed) R.string.profile_completed else R.string.profile_pending,
+                        ),
+                        if (completed) FeedbackTone.Success else FeedbackTone.Info,
+                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(JamSpacing.Large),
+                            verticalArrangement = Arrangement.spacedBy(JamSpacing.Large),
+                        ) {
+                            ProfileContactField(
+                                stringResource(R.string.profile_full_name),
+                                profile.fullName,
+                            )
+                            ProfileContactField(
+                                stringResource(R.string.profile_phone),
+                                profile.phone,
+                            )
+                            ProfileContactField(
+                                stringResource(R.string.profile_contact_email),
+                                profile.contactEmail,
+                            )
+                            Text(
+                                stringResource(R.string.profile_contact_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+        }
+        TextButton(onClick = onRefresh, enabled = enabled && !state.isBusy) {
+            Text(
+                stringResource(
+                    if (state.status == ProfileLoadStatus.READY) R.string.profile_refresh
+                    else R.string.auth_retry,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileContactField(label: String, value: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(JamSpacing.ExtraSmall)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(
+            value ?: stringResource(R.string.profile_missing_value),
+            style = MaterialTheme.typography.bodyLarge,
+        )
     }
 }
 
